@@ -126,6 +126,7 @@ export const MainPage: React.FC = () => {
     isOnline,
     isFlushingOutbox,
     typingUsers,
+    isSelfTyping,
     sendMessage,
     sendTyping,
     toggleReaction,
@@ -280,6 +281,7 @@ export const MainPage: React.FC = () => {
             isOnline={isOnline}
             isFlushingOutbox={isFlushingOutbox}
             typingUsers={typingUsers}
+            isSelfTyping={isSelfTyping}
             isMemberListOpen={isMemberListOpen}
             onSendMessage={sendMessage}
             onTyping={sendTyping}

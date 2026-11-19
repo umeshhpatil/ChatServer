@@ -26,6 +26,8 @@ export function useChat({
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isFlushingOutbox, setIsFlushingOutbox] = useState<boolean>(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [isSelfTyping, setIsSelfTyping] = useState<boolean>(false);
+  const selfTypingTimeoutRef = useRef<number | null>(null);
 
   const activeChatRef = useRef<{ id: string | null; type: ChatType | null }>({
     id: chatId,
@@ -276,7 +278,11 @@ export function useChat({
     let channel: RealtimeChannel | null = null;
     try {
       channel = supabase
-        .channel(`chat-room:${chatId}`)
+        .channel(`chat-room:${chatId}`, {
+          config: {
+            broadcast: { self: false, ack: false },
+          },
+        })
         .on(
           'postgres_changes',
           {
@@ -405,19 +411,35 @@ export function useChat({
       if (channel) {
         supabase.removeChannel(channel);
       }
+      if (selfTypingTimeoutRef.current) {
+        window.clearTimeout(selfTypingTimeoutRef.current);
+      }
       typingTimeoutsRef.current.forEach((t) => window.clearTimeout(t));
       typingTimeoutsRef.current.clear();
       setTypingUsers([]);
+      setIsSelfTyping(false);
     };
   }, [chatId, currentUserId, playReceiveSound, processReactions]);
 
-  // Send broadcast typing event
+  // Send broadcast typing event with immediate local feedback
   const sendTyping = useCallback(() => {
-    if (!channelRef.current || !currentUserId || !currentUsername) return;
+    if (!currentUserId) return;
+
+    // 1. Immediate local feedback for the typing user
+    setIsSelfTyping(true);
+    if (selfTypingTimeoutRef.current) {
+      window.clearTimeout(selfTypingTimeoutRef.current);
+    }
+    selfTypingTimeoutRef.current = window.setTimeout(() => {
+      setIsSelfTyping(false);
+    }, 2500);
+
+    // 2. Broadcast to other room participants
+    if (!channelRef.current) return;
 
     const now = Date.now();
-    // Throttle typing broadcasts to once every 1.5 seconds
-    if (now - lastTypingSentRef.current > 1500) {
+    // Throttle typing broadcasts to once every 1.2 seconds
+    if (now - lastTypingSentRef.current > 1200) {
       lastTypingSentRef.current = now;
       channelRef.current
         .send({
@@ -425,10 +447,12 @@ export function useChat({
           event: 'typing',
           payload: {
             userId: currentUserId,
-            username: currentUsername,
+            username: currentUsername || 'Someone',
           },
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.warn('Realtime typing broadcast error:', err);
+        });
     }
   }, [currentUserId, currentUsername]);
 
@@ -441,6 +465,11 @@ export function useChat({
       const timestamp = new Date().toISOString();
 
       playSendSound();
+
+      setIsSelfTyping(false);
+      if (selfTypingTimeoutRef.current) {
+        window.clearTimeout(selfTypingTimeoutRef.current);
+      }
 
       const optimisticMsg: Message = {
         id: clientId,
@@ -610,6 +639,7 @@ export function useChat({
     isOnline,
     isFlushingOutbox,
     typingUsers,
+    isSelfTyping,
     sendMessage,
     sendTyping,
     toggleReaction,
