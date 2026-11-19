@@ -13,6 +13,7 @@ interface ChatAreaProps {
   isOnline: boolean;
   isFlushingOutbox: boolean;
   typingUsers?: string[];
+  isSelfTyping?: boolean;
   isMemberListOpen?: boolean;
   onSendMessage: (body: string) => void;
   onTyping?: () => void;
@@ -31,6 +32,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isOnline,
   isFlushingOutbox,
   typingUsers = [],
+  isSelfTyping = false,
   isMemberListOpen = false,
   onSendMessage,
   onTyping,
@@ -61,21 +63,33 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       </div>
 
       {/* Typing Indicator Bar */}
-      {typingUsers.length > 0 && (
-        <div className="px-4 py-1 flex items-center space-x-1.5 text-xs text-discord-muted bg-discord-bg flex-shrink-0">
+      {(typingUsers.length > 0 || isSelfTyping) && (
+        <div className="px-4 py-1 flex items-center space-x-1.5 text-xs text-discord-muted bg-discord-bg flex-shrink-0 animate-in fade-in duration-150">
           <div className="flex space-x-0.5 items-center mr-0.5">
             <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
             <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
             <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
           </div>
-          <span className="font-semibold text-discord-text">
-            {typingUsers.length === 1
-              ? typingUsers[0]
-              : typingUsers.length === 2
-              ? `${typingUsers[0]} and ${typingUsers[1]}`
-              : `${typingUsers[0]} and ${typingUsers.length - 1} others`}
-          </span>
-          <span>{typingUsers.length === 1 ? 'is typing...' : 'are typing...'}</span>
+          {typingUsers.length > 0 && isSelfTyping ? (
+            <span>
+              <strong className="text-discord-text">{typingUsers.join(', ')}</strong> and <strong className="text-discord-text">you</strong> are typing...
+            </span>
+          ) : typingUsers.length > 0 ? (
+            <span>
+              <strong className="text-discord-text">
+                {typingUsers.length === 1
+                  ? typingUsers[0]
+                  : typingUsers.length === 2
+                  ? `${typingUsers[0]} and ${typingUsers[1]}`
+                  : `${typingUsers[0]} and ${typingUsers.length - 1} others`}
+              </strong>{' '}
+              {typingUsers.length === 1 ? 'is typing...' : 'are typing...'}
+            </span>
+          ) : (
+            <span>
+              <strong className="text-discord-text">You</strong> are typing...
+            </span>
+          )}
         </div>
       )}
 
