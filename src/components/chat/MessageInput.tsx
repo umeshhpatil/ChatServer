@@ -5,12 +5,14 @@ interface MessageInputProps {
   placeholder: string;
   disabled?: boolean;
   onSendMessage: (body: string) => void;
+  onTyping?: () => void;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
   placeholder,
   disabled = false,
   onSendMessage,
+  onTyping,
 }) => {
   const [text, setText] = useState('');
 
@@ -18,6 +20,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     if (!text.trim() || disabled) return;
     onSendMessage(text);
     setText('');
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+    if (onTyping && e.target.value.trim().length > 0) {
+      onTyping();
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -33,7 +42,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}

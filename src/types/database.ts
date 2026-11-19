@@ -58,6 +58,21 @@ export interface GroupInviteLink {
   created_at: string;
 }
 
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
+}
+
+export interface ReactionGroup {
+  emoji: string;
+  count: number;
+  hasReacted: boolean;
+  users: string[];
+}
+
 export interface Message {
   id: string;
   chat_type: ChatType;
@@ -68,4 +83,5 @@ export interface Message {
   created_at: string;
   sender?: Profile;
   status?: 'sent' | 'queued' | 'sending' | 'failed';
+  reactions?: ReactionGroup[];
 }

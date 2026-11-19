@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, UserPlus, MessageSquare, Check, X, Mail, Menu, Hash, Plus } from 'lucide-react';
 import type { Friendship, Group, GroupInvite, Profile } from '../../types/database';
+import type { UserStatus } from '../../hooks/usePresence';
 
 interface FriendsViewProps {
   currentProfile: Profile | null;
@@ -8,6 +9,7 @@ interface FriendsViewProps {
   pendingRequests: Friendship[];
   groupInvites: GroupInvite[];
   groups?: Group[];
+  getUserStatus?: (userId: string) => UserStatus;
   onStartChat: (friendshipId: string) => void;
   onAcceptFriend: (friendshipId: string) => Promise<void>;
   onDeclineFriend: (friendshipId: string) => Promise<void>;
@@ -27,6 +29,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   pendingRequests,
   groupInvites,
   groups = [],
+  getUserStatus,
   onStartChat,
   onAcceptFriend,
   onDeclineFriend,
@@ -41,6 +44,34 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const [targetUsername, setTargetUsername] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ text: string; isError: boolean } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const getStatusColor = (status: UserStatus) => {
+    switch (status) {
+      case 'online':
+        return 'bg-discord-online';
+      case 'idle':
+        return 'bg-discord-warn';
+      case 'dnd':
+        return 'bg-discord-danger';
+      case 'offline':
+      default:
+        return 'bg-discord-muted';
+    }
+  };
+
+  const getStatusLabel = (status: UserStatus) => {
+    switch (status) {
+      case 'online':
+        return 'Online';
+      case 'idle':
+        return 'Idle';
+      case 'dnd':
+        return 'Do Not Disturb';
+      case 'offline':
+      default:
+        return 'Offline';
+    }
+  };
 
   const incomingFriendReqs = pendingRequests.filter(
     (f) => f.addressee_id === currentProfile?.id
@@ -234,6 +265,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                     f.requester_id === currentProfile?.id
                       ? f.addressee
                       : f.requester;
+                  const friendStatus = friend && getUserStatus ? getUserStatus(friend.id) : 'offline';
 
                   return (
                     <div
@@ -250,13 +282,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
                             alt="Avatar"
                             className="w-10 h-10 rounded-full bg-discord-rail"
                           />
-                          <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-discord-online border-2 border-discord-bg" />
+                          <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${getStatusColor(friendStatus)} border-2 border-discord-bg`} />
                         </div>
                         <div>
                           <div className="font-semibold text-sm text-discord-text">
                             {friend?.username || 'User'}
                           </div>
-                          <div className="text-xs text-discord-muted">Online</div>
+                          <div className="text-xs text-discord-muted capitalize">
+                            {getStatusLabel(friendStatus)}
+                          </div>
                         </div>
                       </div>
 

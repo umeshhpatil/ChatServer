@@ -12,9 +12,14 @@ interface ChatAreaProps {
   loading: boolean;
   isOnline: boolean;
   isFlushingOutbox: boolean;
+  typingUsers?: string[];
+  isMemberListOpen?: boolean;
   onSendMessage: (body: string) => void;
+  onTyping?: () => void;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
   onFlushOutbox?: () => void;
   onToggleMobileSidebar?: () => void;
+  onToggleMemberList?: () => void;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -25,9 +30,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   loading,
   isOnline,
   isFlushingOutbox,
+  typingUsers = [],
+  isMemberListOpen = false,
   onSendMessage,
+  onTyping,
+  onToggleReaction,
   onFlushOutbox,
   onToggleMobileSidebar,
+  onToggleMemberList,
 }) => {
   return (
     <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] min-h-0 bg-discord-bg min-w-0 w-full overflow-hidden relative">
@@ -36,19 +46,43 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         isGroup={isGroup}
         isOnline={isOnline}
         isFlushingOutbox={isFlushingOutbox}
+        isMemberListOpen={isMemberListOpen}
         onFlushOutbox={onFlushOutbox}
         onToggleMobileSidebar={onToggleMobileSidebar}
+        onToggleMemberList={onToggleMemberList}
       />
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
           loading={loading}
+          onToggleReaction={onToggleReaction}
         />
       </div>
+
+      {/* Typing Indicator Bar */}
+      {typingUsers.length > 0 && (
+        <div className="px-4 py-1 flex items-center space-x-1.5 text-xs text-discord-muted bg-discord-bg flex-shrink-0">
+          <div className="flex space-x-0.5 items-center mr-0.5">
+            <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1.5 h-1.5 bg-discord-muted rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span className="font-semibold text-discord-text">
+            {typingUsers.length === 1
+              ? typingUsers[0]
+              : typingUsers.length === 2
+              ? `${typingUsers[0]} and ${typingUsers[1]}`
+              : `${typingUsers[0]} and ${typingUsers.length - 1} others`}
+          </span>
+          <span>{typingUsers.length === 1 ? 'is typing...' : 'are typing...'}</span>
+        </div>
+      )}
+
       <MessageInput
         placeholder={isGroup ? `Message #${title}` : `Message @${title}`}
         onSendMessage={onSendMessage}
+        onTyping={onTyping}
       />
     </div>
   );

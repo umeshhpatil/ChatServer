@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut } from 'lucide-react';
+import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut, Check } from 'lucide-react';
 import type { Friendship, Group, Profile } from '../../types/database';
+import type { UserStatus } from '../../hooks/usePresence';
 
 interface SubSidebarProps {
   activeMode: 'dm' | 'group';
@@ -10,11 +11,13 @@ interface SubSidebarProps {
   friends: Friendship[];
   currentProfile: Profile | null;
   pendingTotal: number;
+  userStatus?: UserStatus;
   onSelectFriendsTab: () => void;
   onSelectFriendChat: (friendshipId: string) => void;
   onOpenDirectInvite: () => void;
   onOpenInviteLink: () => void;
   onOpenSettings: () => void;
+  onStatusChange?: (status: UserStatus) => void;
   onDeleteGroup?: (groupId: string) => Promise<void>;
   onLeaveGroup?: (groupId: string) => Promise<void>;
 }
@@ -27,17 +30,48 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
   friends,
   currentProfile,
   pendingTotal,
+  userStatus = 'online',
   onSelectFriendsTab,
   onSelectFriendChat,
   onOpenDirectInvite,
   onOpenInviteLink,
   onOpenSettings,
+  onStatusChange,
   onDeleteGroup,
   onLeaveGroup,
 }) => {
   const currentGroup = groups.find((g) => g.id === activeGroupId);
   const isOwner = currentGroup && currentProfile && currentGroup.owner_id === currentProfile.id;
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isStatusPickerOpen, setIsStatusPickerOpen] = useState(false);
+
+  const getStatusColor = (status: UserStatus) => {
+    switch (status) {
+      case 'online':
+        return 'bg-discord-online';
+      case 'idle':
+        return 'bg-discord-warn';
+      case 'dnd':
+        return 'bg-discord-danger';
+      case 'offline':
+      default:
+        return 'bg-discord-muted';
+    }
+  };
+
+  const getStatusLabel = (status: UserStatus) => {
+    switch (status) {
+      case 'online':
+        return 'Online';
+      case 'idle':
+        return 'Idle';
+      case 'dnd':
+        return 'Do Not Disturb';
+      case 'offline':
+      default:
+        return 'Invisible';
+    }
+  };
 
   const handleDelete = async () => {
     if (!currentGroup || !onDeleteGroup) return;
@@ -202,8 +236,12 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
       </div>
 
       {/* User Footer Panel */}
-      <div className="h-14 bg-[#232428] px-2 flex items-center justify-between">
-        <div className="flex items-center space-x-2 overflow-hidden px-1">
+      <div className="h-14 bg-[#232428] px-2 flex items-center justify-between relative">
+        <div
+          onClick={() => onStatusChange && setIsStatusPickerOpen((prev) => !prev)}
+          className="flex items-center space-x-2 overflow-hidden px-1 rounded-md hover:bg-discord-input/60 p-1 cursor-pointer transition-colors flex-1 min-w-0"
+          title="Click to change online status"
+        >
           <div className="relative flex-shrink-0">
             <img
               src={
@@ -213,21 +251,46 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
               alt="My Avatar"
               className="w-8 h-8 rounded-full bg-discord-rail"
             />
-            <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-discord-online border border-[#232428]" />
+            <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${getStatusColor(userStatus)} border border-[#232428]`} />
           </div>
           <div className="flex flex-col min-w-0">
             <span className="text-sm font-semibold text-discord-text truncate leading-tight">
               {currentProfile?.username || 'User'}
             </span>
             <span className="text-[11px] text-discord-muted truncate">
-              Online
+              {getStatusLabel(userStatus)}
             </span>
           </div>
         </div>
 
+        {/* Status Picker Popover */}
+        {isStatusPickerOpen && onStatusChange && (
+          <div className="absolute bottom-16 left-2 w-48 bg-discord-side border border-discord-border rounded-lg shadow-xl py-1.5 z-50">
+            <div className="px-3 py-1 text-[11px] font-bold text-discord-muted uppercase tracking-wider">
+              Set Status
+            </div>
+            {(['online', 'idle', 'dnd', 'offline'] as UserStatus[]).map((st) => (
+              <button
+                key={st}
+                onClick={() => {
+                  onStatusChange(st);
+                  setIsStatusPickerOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-discord-text hover:bg-discord-input transition-colors text-left"
+              >
+                <div className="flex items-center space-x-2">
+                  <span className={`w-2 h-2 rounded-full ${getStatusColor(st)}`} />
+                  <span>{getStatusLabel(st)}</span>
+                </div>
+                {userStatus === st && <Check className="w-3.5 h-3.5 text-discord-accent" />}
+              </button>
+            ))}
+          </div>
+        )}
+
         <button
           onClick={onOpenSettings}
-          className="p-1.5 text-discord-muted hover:text-discord-text hover:bg-discord-input rounded transition-colors"
+          className="p-1.5 text-discord-muted hover:text-discord-text hover:bg-discord-input rounded transition-colors ml-1"
           title="User Settings"
         >
           <Settings className="w-4 h-4" />

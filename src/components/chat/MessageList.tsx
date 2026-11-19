@@ -1,19 +1,24 @@
-import React, { useEffect, useRef } from 'react';
-import { Clock, AlertCircle, UserCheck } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Clock, AlertCircle, UserCheck, Smile } from 'lucide-react';
 import type { Message } from '../../types/database';
+
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉'];
 
 interface MessageListProps {
   messages: Message[];
   currentUserId: string | null;
   loading: boolean;
+  onToggleReaction?: (messageId: string, emoji: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   currentUserId,
   loading,
+  onToggleReaction,
 }) => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -98,10 +103,27 @@ export const MessageList: React.FC<MessageListProps> = ({
         return (
           <div
             key={msg.client_id || msg.id}
-            className={`flex items-start space-x-2.5 sm:space-x-3 group hover:bg-[#2e3035]/60 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded transition-colors ${
+            className={`relative flex items-start space-x-2.5 sm:space-x-3 group hover:bg-[#2e3035]/60 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded transition-colors ${
               msg.status === 'queued' ? 'opacity-80' : ''
             }`}
           >
+            {/* Desktop Quick Reaction Bar on Hover */}
+            {onToggleReaction && (
+              <div className="absolute right-3 -top-3.5 hidden group-hover:flex items-center bg-discord-side border border-discord-border rounded-lg shadow-lg px-1.5 py-0.5 space-x-1 z-20 transition-all">
+                {QUICK_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => onToggleReaction(msg.id, emoji)}
+                    className="hover:bg-discord-input p-1 rounded text-sm transition-transform hover:scale-125"
+                    title={`React with ${emoji}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {!isSameSender ? (
               <img
                 src={avatarUrl}
@@ -133,6 +155,71 @@ export const MessageList: React.FC<MessageListProps> = ({
               <div className="text-discord-text text-sm break-words leading-relaxed whitespace-pre-wrap">
                 {msg.body}
               </div>
+
+              {/* Emoji Reaction Chips */}
+              {((msg.reactions && msg.reactions.length > 0) || onToggleReaction) && (
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {msg.reactions?.map((reaction) => (
+                    <button
+                      key={reaction.emoji}
+                      type="button"
+                      onClick={() => onToggleReaction?.(msg.id, reaction.emoji)}
+                      className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-md text-xs font-medium border transition-colors ${
+                        reaction.hasReacted
+                          ? 'bg-discord-accent/20 border-discord-accent text-discord-accent'
+                          : 'bg-discord-input/80 hover:bg-discord-input border-discord-border text-discord-text'
+                      }`}
+                      title={`${reaction.count} reacted with ${reaction.emoji}`}
+                    >
+                      <span className="text-sm leading-none">{reaction.emoji}</span>
+                      <span className="text-[11px] font-semibold">{reaction.count}</span>
+                    </button>
+                  ))}
+
+                  {/* Add reaction button (+ smile icon) */}
+                  {onToggleReaction && (
+                    <div className="relative inline-block">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveReactionMenu(
+                            activeReactionMenu === (msg.client_id || msg.id)
+                              ? null
+                              : msg.client_id || msg.id
+                          )
+                        }
+                        className={`inline-flex items-center justify-center p-1 rounded-md text-discord-muted hover:text-discord-text hover:bg-discord-input border border-transparent hover:border-discord-border transition-colors ${
+                          msg.reactions && msg.reactions.length > 0 ? '' : 'sm:opacity-0 group-hover:opacity-100'
+                        }`}
+                        title="Add reaction"
+                      >
+                        <Smile className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Dropdown Menu for Mobile or Quick Click */}
+                      {activeReactionMenu === (msg.client_id || msg.id) && (
+                        <div
+                          className="absolute left-0 bottom-full mb-1 flex items-center bg-discord-side border border-discord-border rounded-lg shadow-xl px-1.5 py-1 space-x-1.5 z-30 animate-in fade-in zoom-in-95 duration-150"
+                        >
+                          {QUICK_EMOJIS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => {
+                                onToggleReaction(msg.id, emoji);
+                                setActiveReactionMenu(null);
+                              }}
+                              className="hover:bg-discord-input p-1 rounded text-base transition-transform hover:scale-125"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Status Indicator (for offline outbox / pending retries) */}
               {msg.status === 'queued' && (
