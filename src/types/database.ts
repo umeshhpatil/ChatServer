@@ -58,6 +58,15 @@ export interface GroupInviteLink {
   created_at: string;
 }
 
+export interface Channel {
+  id: string;
+  group_id: string;
+  name: string;
+  topic?: string | null;
+  type?: 'text' | 'announcement';
+  created_at?: string;
+}
+
 export interface MessageReaction {
   id: string;
   message_id: string;
@@ -81,6 +90,10 @@ export interface Message {
   body: string;
   client_id?: string;
   created_at: string;
+  edited_at?: string | null;
+  is_pinned?: boolean;
+  attachment_url?: string | null;
+  attachment_type?: string | null;
   sender?: Profile;
   status?: 'sent' | 'queued' | 'sending' | 'failed';
   reactions?: ReactionGroup[];

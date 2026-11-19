@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, AtSign, Wifi, WifiOff, RefreshCw, Menu, Users } from 'lucide-react';
+import { Hash, AtSign, Wifi, WifiOff, RefreshCw, Menu, Users, Pin } from 'lucide-react';
 
 interface ChatHeaderProps {
   title: string;
@@ -7,9 +7,11 @@ interface ChatHeaderProps {
   isOnline: boolean;
   isFlushingOutbox: boolean;
   isMemberListOpen?: boolean;
+  pinnedCount?: number;
   onFlushOutbox?: () => void;
   onToggleMobileSidebar?: () => void;
   onToggleMemberList?: () => void;
+  onOpenPinned?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -18,9 +20,11 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isOnline,
   isFlushingOutbox,
   isMemberListOpen = false,
+  pinnedCount = 0,
   onFlushOutbox,
   onToggleMobileSidebar,
   onToggleMemberList,
+  onOpenPinned,
 }) => {
   return (
     <div className="h-12 border-b border-discord-border px-3 sm:px-4 flex items-center justify-between shadow-sm bg-discord-bg flex-shrink-0">
@@ -65,6 +69,26 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             <span className="text-discord-online text-[11px] sm:text-xs hidden sm:inline">Connected</span>
           </button>
         )}
+        {/* Pinned Messages Button */}
+        {onOpenPinned && (
+          <button
+            onClick={onOpenPinned}
+            className={`p-1.5 rounded transition-colors relative ${
+              pinnedCount > 0
+                ? 'text-amber-400 hover:bg-amber-400/10'
+                : 'text-discord-muted hover:text-discord-text hover:bg-discord-input/60'
+            }`}
+            title={`Pinned Messages (${pinnedCount})`}
+          >
+            <Pin className="w-4 h-4 sm:w-5 sm:h-5" />
+            {pinnedCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-amber-400 text-black text-[9px] font-bold px-1 rounded-full">
+                {pinnedCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Server Member List Drawer Toggle (only for groups) */}
         {isGroup && onToggleMemberList && (
           <button

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { PinnedMessagesModal } from './PinnedMessagesModal';
 import type { Message } from '../../types/database';
 
 interface ChatAreaProps {
@@ -9,13 +10,18 @@ interface ChatAreaProps {
   isGroup: boolean;
   messages: Message[];
   currentUserId: string | null;
+  currentUsername?: string | null;
   loading: boolean;
   isOnline: boolean;
   isFlushingOutbox: boolean;
+  isAdmin?: boolean;
   typingUsers?: string[];
   isSelfTyping?: boolean;
   isMemberListOpen?: boolean;
-  onSendMessage: (body: string) => void;
+  onSendMessage: (body: string, attachment?: { url: string; type: string }) => void;
+  onEditMessage?: (messageId: string, newBody: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  onTogglePin?: (messageId: string) => void;
   onTyping?: () => void;
   onToggleReaction?: (messageId: string, emoji: string) => void;
   onFlushOutbox?: () => void;
@@ -28,19 +34,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isGroup,
   messages,
   currentUserId,
+  currentUsername,
   loading,
   isOnline,
   isFlushingOutbox,
+  isAdmin = false,
   typingUsers = [],
   isSelfTyping = false,
   isMemberListOpen = false,
   onSendMessage,
+  onEditMessage,
+  onDeleteMessage,
+  onTogglePin,
   onTyping,
   onToggleReaction,
   onFlushOutbox,
   onToggleMobileSidebar,
   onToggleMemberList,
 }) => {
+  const [isPinnedModalOpen, setIsPinnedModalOpen] = useState(false);
+  const pinnedMessages = messages.filter((m) => m.is_pinned);
+
   return (
     <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] min-h-0 bg-discord-bg min-w-0 w-full overflow-hidden relative">
       <ChatHeader
@@ -49,16 +63,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         isOnline={isOnline}
         isFlushingOutbox={isFlushingOutbox}
         isMemberListOpen={isMemberListOpen}
+        pinnedCount={pinnedMessages.length}
         onFlushOutbox={onFlushOutbox}
         onToggleMobileSidebar={onToggleMobileSidebar}
         onToggleMemberList={onToggleMemberList}
+        onOpenPinned={() => setIsPinnedModalOpen(true)}
       />
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
         <MessageList
           messages={messages}
           currentUserId={currentUserId}
+          currentUsername={currentUsername}
           loading={loading}
+          isAdmin={isAdmin}
           onToggleReaction={onToggleReaction}
+          onEditMessage={onEditMessage}
+          onDeleteMessage={onDeleteMessage}
+          onTogglePin={onTogglePin}
         />
       </div>
 
@@ -97,6 +118,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         placeholder={isGroup ? `Message #${title}` : `Message @${title}`}
         onSendMessage={onSendMessage}
         onTyping={onTyping}
+      />
+
+      {/* Pinned Messages Modal */}
+      <PinnedMessagesModal
+        isOpen={isPinnedModalOpen}
+        pinnedMessages={pinnedMessages}
+        onClose={() => setIsPinnedModalOpen(false)}
+        onUnpin={(messageId) => {
+          onTogglePin?.(messageId);
+        }}
       />
     </div>
   );

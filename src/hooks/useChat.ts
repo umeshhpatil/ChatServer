@@ -286,53 +286,80 @@ export function useChat({
         .on(
           'postgres_changes',
           {
-            event: 'INSERT',
+            event: '*',
             schema: 'public',
             table: 'messages',
             filter: `chat_id=eq.${chatId}`,
           },
           async (payload) => {
-            const newMsg = payload.new as Message;
+            if (payload.eventType === 'INSERT') {
+              const newMsg = payload.new as Message;
 
-            if (!newMsg.sender && newMsg.sender_id) {
-              const { data: senderData } = await supabase
-                .from('profiles')
-                .select('id, username, avatar_url')
-                .eq('id', newMsg.sender_id)
-                .maybeSingle();
-              if (senderData) {
-                newMsg.sender = senderData;
+              if (!newMsg.sender && newMsg.sender_id) {
+                const { data: senderData } = await supabase
+                  .from('profiles')
+                  .select('id, username, avatar_url')
+                  .eq('id', newMsg.sender_id)
+                  .maybeSingle();
+                if (senderData) {
+                  newMsg.sender = senderData;
+                }
               }
-            }
 
-            await localDb.messages.put({
-              ...newMsg,
-              status: 'sent',
-            });
+              await localDb.messages.put({
+                ...newMsg,
+                status: 'sent',
+              });
 
-            setMessages((prev) => {
-              const existingIndex = prev.findIndex(
-                (m) =>
-                  (newMsg.client_id && m.client_id === newMsg.client_id) ||
-                  m.id === newMsg.id
+              setMessages((prev) => {
+                const existingIndex = prev.findIndex(
+                  (m) =>
+                    (newMsg.client_id && m.client_id === newMsg.client_id) ||
+                    m.id === newMsg.id
+                );
+                if (existingIndex !== -1) {
+                  const next = [...prev];
+                  next[existingIndex] = { ...newMsg, status: 'sent', reactions: prev[existingIndex].reactions || [] };
+                  return next;
+                }
+                return [...prev, { ...newMsg, status: 'sent', reactions: [] }];
+              });
+
+              if (newMsg.sender_id !== currentUserId) {
+                const isLookingAtChat =
+                  document.visibilityState === 'visible' &&
+                  document.hasFocus() &&
+                  activeChatRef.current.id === chatId;
+
+                if (!isLookingAtChat) {
+                  playReceiveSound();
+                }
+              }
+            } else if (payload.eventType === 'UPDATE') {
+              const updated = payload.new as Message;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === updated.id
+                    ? {
+                        ...m,
+                        body: updated.body,
+                        edited_at: updated.edited_at,
+                        is_pinned: updated.is_pinned,
+                        attachment_url: updated.attachment_url,
+                        attachment_type: updated.attachment_type,
+                      }
+                    : m
+                )
               );
-              if (existingIndex !== -1) {
-                const next = [...prev];
-                next[existingIndex] = { ...newMsg, status: 'sent', reactions: prev[existingIndex].reactions || [] };
-                return next;
-              }
-              return [...prev, { ...newMsg, status: 'sent', reactions: [] }];
-            });
-
-            if (newMsg.sender_id !== currentUserId) {
-              const isLookingAtChat =
-                document.visibilityState === 'visible' &&
-                document.hasFocus() &&
-                activeChatRef.current.id === chatId;
-
-              if (!isLookingAtChat) {
-                playReceiveSound();
-              }
+              localDb.messages.update(updated.id, {
+                body: updated.body,
+                edited_at: updated.edited_at,
+                is_pinned: updated.is_pinned,
+              }).catch(() => {});
+            } else if (payload.eventType === 'DELETE') {
+              const oldMsg = payload.old as { id: string };
+              setMessages((prev) => prev.filter((m) => m.id !== oldMsg.id));
+              localDb.messages.delete(oldMsg.id).catch(() => {});
             }
           }
         )
@@ -458,8 +485,8 @@ export function useChat({
 
   // Send message function with instant whoosh sound & offline queue
   const sendMessage = useCallback(
-    async (body: string) => {
-      if (!chatId || !chatType || !currentUserId || !body.trim()) return;
+    async (body: string, attachment?: { url: string; type: string }) => {
+      if (!chatId || !chatType || !currentUserId || (!body.trim() && !attachment?.url)) return;
 
       const clientId = crypto.randomUUID();
       const timestamp = new Date().toISOString();
@@ -477,6 +504,8 @@ export function useChat({
         chat_type: chatType,
         sender_id: currentUserId,
         body: body.trim(),
+        attachment_url: attachment?.url,
+        attachment_type: attachment?.type,
         client_id: clientId,
         created_at: timestamp,
         status: navigator.onLine ? 'sending' : 'queued',
@@ -509,6 +538,8 @@ export function useChat({
             chat_type: chatType,
             sender_id: currentUserId,
             body: body.trim(),
+            attachment_url: attachment?.url,
+            attachment_type: attachment?.type,
             client_id: clientId,
             created_at: timestamp,
           })
@@ -551,6 +582,86 @@ export function useChat({
       }
     },
     [chatId, chatType, currentUserId, playSendSound]
+  );
+
+  // Edit an existing message
+  const editMessage = useCallback(
+    async (messageId: string, newBody: string) => {
+      if (!newBody.trim() || !currentUserId || !isConfigured) return;
+      const editedAt = new Date().toISOString();
+
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId || m.client_id === messageId
+            ? { ...m, body: newBody.trim(), edited_at: editedAt }
+            : m
+        )
+      );
+
+      try {
+        await supabase
+          .from('messages')
+          .update({
+            body: newBody.trim(),
+            edited_at: editedAt,
+          })
+          .eq('id', messageId);
+      } catch (err) {
+        console.error('Error editing message:', err);
+      }
+    },
+    [currentUserId]
+  );
+
+  // Delete a message
+  const deleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!currentUserId || !isConfigured) return;
+
+      // Optimistic delete
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== messageId && m.client_id !== messageId)
+      );
+      localDb.messages.delete(messageId).catch(() => {});
+
+      try {
+        await supabase.from('messages').delete().eq('id', messageId);
+      } catch (err) {
+        console.error('Error deleting message:', err);
+      }
+    },
+    [currentUserId]
+  );
+
+  // Toggle message pin status
+  const togglePin = useCallback(
+    async (messageId: string) => {
+      if (!currentUserId || !isConfigured) return;
+      const target = messages.find((m) => m.id === messageId || m.client_id === messageId);
+      if (!target) return;
+
+      const nextPinned = !target.is_pinned;
+
+      // Optimistic update
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId || m.client_id === messageId
+            ? { ...m, is_pinned: nextPinned }
+            : m
+        )
+      );
+
+      try {
+        await supabase
+          .from('messages')
+          .update({ is_pinned: nextPinned })
+          .eq('id', messageId);
+      } catch (err) {
+        console.error('Error pinning message:', err);
+      }
+    },
+    [currentUserId, messages]
   );
 
   // Toggle emoji reaction (add or remove)
@@ -635,12 +746,16 @@ export function useChat({
 
   return {
     messages,
+    pinnedMessages: messages.filter((m) => m.is_pinned),
     loading,
     isOnline,
     isFlushingOutbox,
     typingUsers,
     isSelfTyping,
     sendMessage,
+    editMessage,
+    deleteMessage,
+    togglePin,
     sendTyping,
     toggleReaction,
     flushOutbox,
