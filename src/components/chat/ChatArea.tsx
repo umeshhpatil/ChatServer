@@ -56,7 +56,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const pinnedMessages = messages.filter((m) => m.is_pinned);
 
   return (
-    <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] min-h-0 bg-discord-bg min-w-0 w-full overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-full min-h-0 bg-discord-bg min-w-0 w-full overflow-hidden relative">
       <ChatHeader
         title={title}
         isGroup={isGroup}

@@ -32,7 +32,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
         {/* Mobile Hamburger Menu Toggle */}
         <button
           onClick={onToggleMobileSidebar}
-          className="md:hidden p-1.5 -ml-1 mr-1 rounded text-discord-muted hover:text-discord-text hover:bg-discord-input transition-colors flex-shrink-0"
+          className="md:hidden p-1.5 -ml-1 mr-1.5 rounded-lg text-discord-text bg-discord-side/80 hover:bg-discord-input border border-discord-border/60 transition-colors flex-shrink-0 active:scale-95 shadow-sm"
           title="Open Navigation"
         >
           <Menu className="w-5 h-5" />

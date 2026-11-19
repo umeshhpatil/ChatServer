@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut, Check, Plus, Megaphone, Volume2 } from 'lucide-react';
+import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut, Check, Plus, Megaphone, Volume2, X } from 'lucide-react';
 import { VoiceConnectedBar } from '../voice/VoiceConnectedBar';
 import type { Friendship, Group, Profile, Channel } from '../../types/database';
 import type { UserStatus } from '../../hooks/usePresence';
@@ -32,6 +32,7 @@ interface SubSidebarProps {
   onOpenDirectInvite: () => void;
   onOpenInviteLink: () => void;
   onOpenSettings: () => void;
+  onCloseMobileNav?: () => void;
   onStatusChange?: (status: UserStatus) => void;
   onDeleteGroup?: (groupId: string) => Promise<void>;
   onLeaveGroup?: (groupId: string) => Promise<void>;
@@ -65,6 +66,7 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
   onOpenDirectInvite,
   onOpenInviteLink,
   onOpenSettings,
+  onCloseMobileNav,
   onStatusChange,
   onDeleteGroup,
   onLeaveGroup,
@@ -129,13 +131,22 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
   return (
     <div className="w-60 bg-discord-side flex flex-col h-full border-r border-discord-border flex-shrink-0">
       {/* Sidebar Header */}
-      <div className="h-12 border-b border-discord-border px-4 flex items-center justify-between font-semibold text-discord-text shadow-sm">
+      <div className="h-12 border-b border-discord-border px-3 sm:px-4 flex items-center justify-between font-semibold text-discord-text shadow-sm">
         {activeMode === 'dm' ? (
-          <span>Direct Messages</span>
+          <span className="truncate">Direct Messages</span>
         ) : (
-          <div className="flex items-center justify-between w-full">
-            <span className="truncate">{currentGroup?.name || 'Group Chat'}</span>
-          </div>
+          <span className="truncate">{currentGroup?.name || 'Group Chat'}</span>
+        )}
+
+        {/* Mobile Close Drawer Button */}
+        {onCloseMobileNav && (
+          <button
+            onClick={onCloseMobileNav}
+            className="md:hidden p-1 rounded-lg text-discord-muted hover:text-white hover:bg-discord-input transition-colors flex-shrink-0 ml-2"
+            title="Close Menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
         )}
       </div>
 

@@ -97,7 +97,12 @@ export const MainPage: React.FC = () => {
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [isViewingVoice, setIsViewingVoice] = useState<boolean>(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
-  const [isMemberListOpen, setIsMemberListOpen] = useState<boolean>(true);
+  const [isMemberListOpen, setIsMemberListOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false;
+  });
 
   const handleDeleteGroup = async (groupId: string) => {
     await deleteGroup(groupId);
@@ -273,6 +278,7 @@ export const MainPage: React.FC = () => {
             setActiveMode('group');
             setActiveGroupId(groupId);
             setIsViewingVoice(false);
+            setIsMobileNavOpen(false);
           }}
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
           onOpenExplore={() => setIsExploreOpen(true)}
@@ -328,6 +334,7 @@ export const MainPage: React.FC = () => {
           onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
           onOpenInviteLink={() => setIsInviteLinkOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onCloseMobileNav={() => setIsMobileNavOpen(false)}
           onStatusChange={updateStatus}
           onDeleteGroup={handleDeleteGroup}
           onLeaveGroup={handleLeaveGroup}
@@ -381,7 +388,7 @@ export const MainPage: React.FC = () => {
         />
       ) : (
         // Active Chat Area + Server Member List (when in group mode)
-        <div className="flex-1 flex h-[100dvh] max-h-[100dvh] min-h-0 min-w-0 overflow-hidden relative">
+        <div className="flex-1 flex h-full min-h-0 min-w-0 overflow-hidden relative">
           <ChatArea
             title={chatTitle}
             isGroup={activeMode === 'group'}
