@@ -220,13 +220,17 @@ export function useChat({
           let reactionsMap = new Map<string, ReactionGroup[]>();
 
           if (msgIds.length > 0) {
-            const { data: rawReactions } = await supabase
-              .from('message_reactions')
-              .select('*')
-              .in('message_id', msgIds);
+            try {
+              const { data: rawReactions } = await supabase
+                .from('message_reactions')
+                .select('*')
+                .in('message_id', msgIds);
 
-            if (rawReactions) {
-              reactionsMap = processReactions(rawReactions as MessageReaction[]);
+              if (rawReactions) {
+                reactionsMap = processReactions(rawReactions as MessageReaction[]);
+              }
+            } catch {
+              // Silently ignore if message_reactions table is not yet created
             }
           }
 
@@ -531,7 +535,10 @@ export function useChat({
       }
 
       try {
-        const { data, error } = await supabase
+        let insertData: any = null;
+        let insertError: any = null;
+
+        const res = await supabase
           .from('messages')
           .insert({
             chat_id: chatId,
@@ -544,13 +551,39 @@ export function useChat({
             created_at: timestamp,
           })
           .select('*, sender:profiles(id, username, avatar_url)')
-          .single();
+          .maybeSingle();
 
-        if (error) {
-          console.error('Error inserting message:', error);
+        insertData = res.data;
+        insertError = res.error;
+
+        // If attachment_url column is missing from Supabase (code PGRST204), embed image into body as resilient fallback!
+        if (insertError && (insertError.code === 'PGRST204' || insertError.message?.includes('attachment_url'))) {
+          const fallbackBody = attachment?.url
+            ? `${body.trim()}\n[attachment:image]${attachment.url}`.trim()
+            : body.trim();
+
+          const retryRes = await supabase
+            .from('messages')
+            .insert({
+              chat_id: chatId,
+              chat_type: chatType,
+              sender_id: currentUserId,
+              body: fallbackBody,
+              client_id: clientId,
+              created_at: timestamp,
+            })
+            .select('*, sender:profiles(id, username, avatar_url)')
+            .maybeSingle();
+
+          insertData = retryRes.data;
+          insertError = retryRes.error;
+        }
+
+        if (insertError) {
+          console.error('Error inserting message:', insertError);
           await localDb.outbox.update(clientId, {
             status: 'failed',
-            last_error: error.message,
+            last_error: insertError.message,
           });
           setMessages((prev) =>
             prev.map((m) =>
@@ -559,11 +592,11 @@ export function useChat({
           );
         } else {
           await localDb.outbox.delete(clientId);
-          if (data) {
-            await localDb.messages.put({ ...data, status: 'sent' });
+          if (insertData) {
+            await localDb.messages.put({ ...insertData, status: 'sent' });
             setMessages((prev) =>
               prev.map((m) =>
-                m.client_id === clientId ? { ...data, status: 'sent', reactions: [] } : m
+                m.client_id === clientId ? { ...insertData, status: 'sent', reactions: [] } : m
               )
             );
           }

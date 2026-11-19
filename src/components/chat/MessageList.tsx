@@ -129,7 +129,16 @@ export const MessageList: React.FC<MessageListProps> = ({
             new Date(prevMsg.created_at).getTime() <
             5 * 60 * 1000;
 
-        const isMentioned = currentUsername && msg.body.includes(`@${currentUsername}`);
+        // Parse attachment fallback if embedded in body
+        let displayBody = msg.body || '';
+        let displayAttachmentUrl = msg.attachment_url;
+        if (!displayAttachmentUrl && displayBody.includes('[attachment:image]')) {
+          const split = displayBody.split('[attachment:image]');
+          displayBody = split[0].trim();
+          displayAttachmentUrl = split[1]?.trim() || null;
+        }
+
+        const isMentioned = currentUsername && displayBody.includes(`@${currentUsername}`);
         const canModerate = isMe || isAdmin;
 
         return (
@@ -281,19 +290,19 @@ export const MessageList: React.FC<MessageListProps> = ({
                 </div>
               ) : (
                 <>
-                  {msg.body && (
+                  {displayBody && (
                     <div className="text-discord-text text-sm break-words leading-relaxed whitespace-pre-wrap">
-                      {msg.body}
+                      {displayBody}
                     </div>
                   )}
 
                   {/* Image Attachment Preview */}
-                  {msg.attachment_url && (
+                  {displayAttachmentUrl && (
                     <div className="mt-2">
                       <img
-                        src={msg.attachment_url}
+                        src={displayAttachmentUrl}
                         alt="Attachment"
-                        onClick={() => setLightboxImage(msg.attachment_url ?? null)}
+                        onClick={() => setLightboxImage(displayAttachmentUrl ?? null)}
                         className="max-h-60 sm:max-h-80 max-w-full rounded-lg border border-discord-border object-contain cursor-zoom-in hover:opacity-95 transition-opacity bg-black/20"
                       />
                     </div>

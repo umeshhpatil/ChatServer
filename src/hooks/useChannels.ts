@@ -22,7 +22,7 @@ export function useChannels(groupId: string | null) {
         .eq('group_id', groupId)
         .order('created_at', { ascending: true });
 
-      if (error && error.code !== '42P01') {
+      if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
         // Table doesn't exist yet or permission error
         console.warn('Error fetching channels, using default #general:', error);
       }

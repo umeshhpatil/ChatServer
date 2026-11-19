@@ -8,6 +8,42 @@ interface MessageInputProps {
   onTyping?: () => void;
 }
 
+function compressImage(file: File, maxDim = 1200, quality = 0.8): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } else {
+          resolve((e.target?.result as string) || '');
+        }
+      };
+      img.onerror = () => resolve((e.target?.result as string) || '');
+      img.src = (e.target?.result as string) || '';
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
 export const MessageInput: React.FC<MessageInputProps> = ({
   placeholder,
   disabled = false,
@@ -42,21 +78,32 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const isImage = file.type.startsWith('image/');
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachment({
-        url: reader.result as string,
-        type: isImage ? 'image' : 'file',
-        name: file.name,
-      });
-    };
-    reader.readAsDataURL(file);
+    if (isImage) {
+      const compressedUrl = await compressImage(file);
+      if (compressedUrl) {
+        setAttachment({
+          url: compressedUrl,
+          type: 'image',
+          name: file.name,
+        });
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setAttachment({
+          url: reader.result as string,
+          type: 'file',
+          name: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    }
 
     // Reset input
     e.target.value = '';
