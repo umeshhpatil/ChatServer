@@ -5,6 +5,7 @@ import { useSound } from '../hooks/useSound';
 import { useSocial } from '../hooks/useSocial';
 import { useChat } from '../hooks/useChat';
 import { usePresence } from '../hooks/usePresence';
+import { useChannels } from '../hooks/useChannels';
 import { ServerRail } from '../components/layout/ServerRail';
 import { SubSidebar } from '../components/layout/SubSidebar';
 import { FriendsView } from '../components/friends/FriendsView';
@@ -12,6 +13,7 @@ import { ChatArea } from '../components/chat/ChatArea';
 import { MemberListDrawer } from '../components/groups/MemberListDrawer';
 import { AuthScreen } from '../components/auth/AuthScreen';
 import { CreateGroupModal } from '../components/groups/CreateGroupModal';
+import { CreateChannelModal } from '../components/groups/CreateChannelModal';
 import { DirectInviteModal } from '../components/groups/DirectInviteModal';
 import { InviteLinkModal } from '../components/groups/InviteLinkModal';
 import { SettingsModal } from '../components/common/SettingsModal';
@@ -110,13 +112,25 @@ export const MainPage: React.FC = () => {
 
   // Modal States
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isDirectInviteOpen, setIsDirectInviteOpen] = useState(false);
   const [isInviteLinkOpen, setIsInviteLinkOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
+  // Channels Hook for Active Server
+  const {
+    channels,
+    activeChannelId,
+    setActiveChannelId,
+    createChannel,
+    deleteChannel,
+  } = useChannels(activeGroupId);
+
   // Determine current active chat ID and type
   const activeChatId =
-    activeMode === 'dm' ? activeDmFriendshipId : activeGroupId;
+    activeMode === 'dm'
+      ? activeDmFriendshipId
+      : activeChannelId || activeGroupId;
   const activeChatType = activeChatId ? activeMode : null;
 
   // Realtime Chat & Offline Dexie Outbox Hook
@@ -128,6 +142,9 @@ export const MainPage: React.FC = () => {
     typingUsers,
     isSelfTyping,
     sendMessage,
+    editMessage,
+    deleteMessage,
+    togglePin,
     sendTyping,
     toggleReaction,
     flushOutbox,
@@ -171,11 +188,14 @@ export const MainPage: React.FC = () => {
       chatTitle = friend?.username || 'Friend';
     }
   } else {
-    const currentGroup = groups.find((g) => g.id === activeGroupId);
-    chatTitle = currentGroup?.name || 'general';
+    const currentChannel = channels.find((c) => c.id === activeChannelId);
+    chatTitle = currentChannel?.name || 'general';
   }
 
   const activeGroup = groups.find((g) => g.id === activeGroupId);
+  const isOwner = Boolean(
+    activeGroup && profile && activeGroup.owner_id === profile.id
+  );
   const totalPendingNotifications = pendingRequests.length + groupInvites.length;
 
   return (
@@ -225,6 +245,8 @@ export const MainPage: React.FC = () => {
           currentProfile={profile}
           pendingTotal={totalPendingNotifications}
           userStatus={myStatus}
+          channels={channels}
+          activeChannelId={activeChannelId}
           onSelectFriendsTab={() => {
             setActiveDmFriendshipId(null);
             setIsMobileNavOpen(false);
@@ -233,6 +255,12 @@ export const MainPage: React.FC = () => {
             setActiveDmFriendshipId(fId);
             setIsMobileNavOpen(false);
           }}
+          onSelectChannel={(cId) => {
+            setActiveChannelId(cId);
+            setIsMobileNavOpen(false);
+          }}
+          onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
+          onDeleteChannel={deleteChannel}
           onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
           onOpenInviteLink={() => setIsInviteLinkOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -277,13 +305,18 @@ export const MainPage: React.FC = () => {
             isGroup={activeMode === 'group'}
             messages={messages}
             currentUserId={profile?.id ?? null}
+            currentUsername={profile?.username ?? null}
             loading={chatLoading}
             isOnline={isOnline}
             isFlushingOutbox={isFlushingOutbox}
+            isAdmin={isOwner}
             typingUsers={typingUsers}
             isSelfTyping={isSelfTyping}
             isMemberListOpen={isMemberListOpen}
             onSendMessage={sendMessage}
+            onEditMessage={editMessage}
+            onDeleteMessage={deleteMessage}
+            onTogglePin={togglePin}
             onTyping={sendTyping}
             onToggleReaction={toggleReaction}
             onFlushOutbox={flushOutbox}
@@ -310,6 +343,12 @@ export const MainPage: React.FC = () => {
           setActiveMode('group');
           setActiveGroupId(newGroupId);
         }}
+      />
+
+      <CreateChannelModal
+        isOpen={isCreateChannelOpen}
+        onClose={() => setIsCreateChannelOpen(false)}
+        onCreateChannel={createChannel}
       />
 
       <DirectInviteModal

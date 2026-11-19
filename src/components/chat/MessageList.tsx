@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Clock, AlertCircle, UserCheck, Smile } from 'lucide-react';
+import { Clock, AlertCircle, UserCheck, Smile, Pencil, Trash2, Pin, X } from 'lucide-react';
 import type { Message } from '../../types/database';
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉'];
@@ -7,24 +7,53 @@ const QUICK_EMOJIS = ['👍', '❤️', '😂', '🔥', '🎉'];
 interface MessageListProps {
   messages: Message[];
   currentUserId: string | null;
+  currentUsername?: string | null;
   loading: boolean;
+  isAdmin?: boolean;
   onToggleReaction?: (messageId: string, emoji: string) => void;
+  onEditMessage?: (messageId: string, newBody: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  onTogglePin?: (messageId: string) => void;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({
   messages,
   currentUserId,
+  currentUsername,
   loading,
+  isAdmin = false,
   onToggleReaction,
+  onEditMessage,
+  onDeleteMessage,
+  onTogglePin,
 }) => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  const handleStartEdit = (msg: Message) => {
+    setEditingId(msg.id);
+    setEditText(msg.body);
+  };
+
+  const handleSaveEdit = (messageId: string) => {
+    if (!editText.trim()) return;
+    onEditMessage?.(messageId, editText.trim());
+    setEditingId(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText('');
+  };
 
   if (loading && messages.length === 0) {
     return (
@@ -100,17 +129,21 @@ export const MessageList: React.FC<MessageListProps> = ({
             new Date(prevMsg.created_at).getTime() <
             5 * 60 * 1000;
 
+        const isMentioned = currentUsername && msg.body.includes(`@${currentUsername}`);
+        const canModerate = isMe || isAdmin;
+
         return (
           <div
             key={msg.client_id || msg.id}
-            className={`relative flex items-start space-x-2.5 sm:space-x-3 group hover:bg-[#2e3035]/60 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded transition-colors ${
-              msg.status === 'queued' ? 'opacity-80' : ''
-            }`}
+            className={`relative flex items-start space-x-2.5 sm:space-x-3 group hover:bg-[#2e3035]/60 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition-colors ${
+              isMentioned ? 'bg-amber-500/10 border-l-2 border-amber-500' : ''
+            } ${msg.status === 'queued' ? 'opacity-80' : ''}`}
           >
-            {/* Desktop Quick Reaction Bar on Hover */}
-            {onToggleReaction && (
-              <div className="absolute right-3 -top-3.5 hidden group-hover:flex items-center bg-discord-side border border-discord-border rounded-lg shadow-lg px-1.5 py-0.5 space-x-1 z-20 transition-all">
-                {QUICK_EMOJIS.map((emoji) => (
+            {/* Desktop Action Bar on Hover */}
+            <div className="absolute right-3 -top-3.5 hidden group-hover:flex items-center bg-discord-side border border-discord-border rounded-lg shadow-lg px-1.5 py-0.5 space-x-1 z-20 transition-all">
+              {/* Quick Emojis */}
+              {onToggleReaction &&
+                QUICK_EMOJIS.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
@@ -121,8 +154,53 @@ export const MessageList: React.FC<MessageListProps> = ({
                     {emoji}
                   </button>
                 ))}
-              </div>
-            )}
+
+              <div className="w-[1px] h-4 bg-discord-border mx-0.5" />
+
+              {/* Pin Message Button */}
+              {onTogglePin && (
+                <button
+                  type="button"
+                  onClick={() => onTogglePin(msg.id)}
+                  className={`p-1 rounded transition-colors ${
+                    msg.is_pinned
+                      ? 'text-amber-400 bg-amber-400/10'
+                      : 'text-discord-muted hover:text-discord-text hover:bg-discord-input'
+                  }`}
+                  title={msg.is_pinned ? 'Unpin message' : 'Pin message'}
+                >
+                  <Pin className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Edit Message Button (only author) */}
+              {isMe && onEditMessage && (
+                <button
+                  type="button"
+                  onClick={() => handleStartEdit(msg)}
+                  className="p-1 text-discord-muted hover:text-discord-text hover:bg-discord-input rounded transition-colors"
+                  title="Edit message"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Delete Message Button (author or admin) */}
+              {canModerate && onDeleteMessage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete this message?')) {
+                      onDeleteMessage(msg.id);
+                    }
+                  }}
+                  className="p-1 text-discord-muted hover:text-discord-danger hover:bg-discord-danger/10 rounded transition-colors"
+                  title="Delete message"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
             {!isSameSender ? (
               <img
@@ -137,6 +215,14 @@ export const MessageList: React.FC<MessageListProps> = ({
             )}
 
             <div className="flex-1 min-w-0">
+              {/* Pinned Indicator Banner */}
+              {msg.is_pinned && (
+                <div className="flex items-center space-x-1 text-[11px] text-amber-400 font-semibold mb-0.5">
+                  <Pin className="w-3 h-3" />
+                  <span>Pinned</span>
+                </div>
+              )}
+
               {!isSameSender && (
                 <div className="flex items-baseline space-x-2">
                   <span
@@ -149,12 +235,71 @@ export const MessageList: React.FC<MessageListProps> = ({
                   <span className="text-[10px] sm:text-[11px] text-discord-muted">
                     {timeStr}
                   </span>
+                  {msg.edited_at && (
+                    <span className="text-[10px] text-discord-muted italic">
+                      (edited)
+                    </span>
+                  )}
                 </div>
               )}
 
-              <div className="text-discord-text text-sm break-words leading-relaxed whitespace-pre-wrap">
-                {msg.body}
-              </div>
+              {/* Message Content: Normal vs Editing Mode */}
+              {editingId === msg.id ? (
+                <div className="mt-1 space-y-1.5">
+                  <input
+                    type="text"
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveEdit(msg.id);
+                      if (e.key === 'Escape') handleCancelEdit();
+                    }}
+                    autoFocus
+                    className="w-full bg-discord-input text-discord-text text-sm rounded-lg px-3 py-1.5 border border-discord-accent focus:outline-none"
+                  />
+                  <div className="text-[11px] text-discord-muted flex items-center space-x-2">
+                    <span>
+                      escape to{' '}
+                      <button
+                        onClick={handleCancelEdit}
+                        className="text-discord-accent hover:underline"
+                      >
+                        cancel
+                      </button>
+                    </span>
+                    <span>•</span>
+                    <span>
+                      enter to{' '}
+                      <button
+                        onClick={() => handleSaveEdit(msg.id)}
+                        className="text-discord-accent hover:underline font-semibold"
+                      >
+                        save
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {msg.body && (
+                    <div className="text-discord-text text-sm break-words leading-relaxed whitespace-pre-wrap">
+                      {msg.body}
+                    </div>
+                  )}
+
+                  {/* Image Attachment Preview */}
+                  {msg.attachment_url && (
+                    <div className="mt-2">
+                      <img
+                        src={msg.attachment_url}
+                        alt="Attachment"
+                        onClick={() => setLightboxImage(msg.attachment_url ?? null)}
+                        className="max-h-60 sm:max-h-80 max-w-full rounded-lg border border-discord-border object-contain cursor-zoom-in hover:opacity-95 transition-opacity bg-black/20"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
               {/* Emoji Reaction Chips */}
               {((msg.reactions && msg.reactions.length > 0) || onToggleReaction) && (
@@ -239,6 +384,29 @@ export const MessageList: React.FC<MessageListProps> = ({
           </div>
         );
       })}
+
+      {/* Lightbox Modal for Fullscreen Image View */}
+      {lightboxImage && (
+        <div
+          onClick={() => setLightboxImage(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center">
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute -top-10 right-0 p-1.5 rounded-full bg-discord-side text-white hover:bg-discord-input transition-colors"
+              title="Close (Click anywhere)"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={lightboxImage}
+              alt="Fullscreen preview"
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

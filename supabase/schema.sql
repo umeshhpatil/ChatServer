@@ -419,14 +419,25 @@ $$;
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
   chat_type text not null check (chat_type in ('dm', 'group')),
-  chat_id uuid not null, -- references either friendships(id) or groups(id)
+  chat_id uuid not null, -- references either friendships(id) or groups(id) / channels(id)
   sender_id uuid not null references public.profiles(id) on delete cascade,
   body text not null,
   client_id text unique,
+  edited_at timestamptz,
+  is_pinned boolean default false,
+  attachment_url text,
+  attachment_type text,
   created_at timestamptz default now()
 );
 
+-- Ensure columns exist if table was already created
+alter table public.messages add column if not exists edited_at timestamptz;
+alter table public.messages add column if not exists is_pinned boolean default false;
+alter table public.messages add column if not exists attachment_url text;
+alter table public.messages add column if not exists attachment_type text;
+
 create index if not exists idx_messages_chat on public.messages (chat_id, created_at asc);
+create index if not exists idx_messages_pinned on public.messages (chat_id, is_pinned) where is_pinned = true;
 
 alter table public.messages enable row level security;
 
@@ -461,6 +472,30 @@ create policy "Users can insert messages into their chats"
       or
       (chat_type = 'group' and public.is_group_member(chat_id))
     )
+  );
+
+-- Tier 2: Message Editing and Pinning
+drop policy if exists "Users can update their own messages or admins can pin" on public.messages;
+create policy "Users can update their own messages or admins can pin"
+  on public.messages for update
+  to authenticated
+  using (
+    sender_id = auth.uid()
+    or (chat_type = 'group' and public.is_group_admin(chat_id))
+  )
+  with check (
+    sender_id = auth.uid()
+    or (chat_type = 'group' and public.is_group_admin(chat_id))
+  );
+
+-- Tier 2: Message Deletion
+drop policy if exists "Users can delete their own messages or admins can delete" on public.messages;
+create policy "Users can delete their own messages or admins can delete"
+  on public.messages for delete
+  to authenticated
+  using (
+    sender_id = auth.uid()
+    or (chat_type = 'group' and public.is_group_admin(chat_id))
   );
 
 
@@ -541,5 +576,49 @@ create policy "Users can remove their own reactions"
 do $$
 begin
   alter publication supabase_realtime add table public.message_reactions;
+exception when others then null;
+end $$;
+
+-- 11. CHANNELS TABLE (Tier 2 Feature: Multiple Channels per Server)
+create table if not exists public.channels (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null references public.groups(id) on delete cascade,
+  name text not null,
+  topic text,
+  type text default 'text' check (type in ('text', 'announcement')),
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_channels_group on public.channels (group_id, created_at asc);
+
+alter table public.channels enable row level security;
+
+drop policy if exists "Channels viewable by group members" on public.channels;
+create policy "Channels viewable by group members"
+  on public.channels for select
+  to authenticated
+  using (public.is_group_member(group_id));
+
+drop policy if exists "Group admins can insert channels" on public.channels;
+create policy "Group admins can insert channels"
+  on public.channels for insert
+  to authenticated
+  with check (public.is_group_admin(group_id));
+
+drop policy if exists "Group admins can update channels" on public.channels;
+create policy "Group admins can update channels"
+  on public.channels for update
+  to authenticated
+  using (public.is_group_admin(group_id));
+
+drop policy if exists "Group admins can delete channels" on public.channels;
+create policy "Group admins can delete channels"
+  on public.channels for delete
+  to authenticated
+  using (public.is_group_admin(group_id));
+
+do $$
+begin
+  alter publication supabase_realtime add table public.channels;
 exception when others then null;
 end $$;
