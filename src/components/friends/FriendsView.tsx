@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, MessageSquare, Check, X, Mail } from 'lucide-react';
+import { Users, UserPlus, MessageSquare, Check, X, Mail, Menu } from 'lucide-react';
 import type { Friendship, GroupInvite, Profile } from '../../types/database';
 
 interface FriendsViewProps {
@@ -13,6 +13,7 @@ interface FriendsViewProps {
   onAcceptGroupInvite: (inviteId: string) => Promise<void>;
   onDeclineGroupInvite: (inviteId: string) => Promise<void>;
   onSendFriendRequest: (username: string) => Promise<void>;
+  onToggleMobileSidebar?: () => void;
 }
 
 type TabType = 'all' | 'pending' | 'invites' | 'add';
@@ -28,6 +29,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   onAcceptGroupInvite,
   onDeclineGroupInvite,
   onSendFriendRequest,
+  onToggleMobileSidebar,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [targetUsername, setTargetUsername] = useState('');
@@ -62,18 +64,27 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-discord-bg min-w-0">
+    <div className="flex-1 flex flex-col h-full bg-discord-bg min-w-0 w-full overflow-hidden">
       {/* Top Header Bar */}
-      <div className="h-12 border-b border-discord-border px-4 flex items-center space-x-4 shadow-sm bg-discord-bg flex-shrink-0">
-        <div className="flex items-center space-x-2 text-discord-text font-bold">
+      <div className="h-12 border-b border-discord-border px-3 sm:px-4 flex items-center space-x-2 sm:space-x-4 shadow-sm bg-discord-bg flex-shrink-0 overflow-x-auto">
+        {/* Mobile Hamburger Menu Toggle */}
+        <button
+          onClick={onToggleMobileSidebar}
+          className="md:hidden p-1.5 -ml-1 rounded text-discord-muted hover:text-discord-text hover:bg-discord-input transition-colors flex-shrink-0"
+          title="Open Navigation"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        <div className="flex items-center space-x-2 text-discord-text font-bold flex-shrink-0">
           <Users className="w-5 h-5 text-discord-muted" />
-          <span>Friends</span>
+          <span className="hidden sm:inline">Friends</span>
         </div>
 
-        <div className="w-[1px] h-5 bg-discord-border" />
+        <div className="w-[1px] h-5 bg-discord-border flex-shrink-0" />
 
         {/* Tab Buttons */}
-        <div className="flex items-center space-x-2 text-sm font-medium">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs sm:text-sm font-medium flex-nowrap">
           <button
             onClick={() => setActiveTab('all')}
             className={`px-2 py-1 rounded transition-colors ${

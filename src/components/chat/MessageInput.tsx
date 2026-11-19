@@ -28,8 +28,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="px-4 pb-4 pt-1 bg-discord-bg flex-shrink-0">
-      <div className="bg-discord-input rounded-lg flex items-center px-4 py-2.5 focus-within:ring-1 focus-within:ring-discord-accent/50 transition-all">
+    <div className="px-3 sm:px-4 pb-3 sm:pb-4 pt-1 bg-discord-bg flex-shrink-0">
+      <div className="bg-discord-input rounded-lg flex items-center px-3 sm:px-4 py-2 sm:py-2.5 focus-within:ring-1 focus-within:ring-discord-accent/50 transition-all">
         <input
           type="text"
           value={text}
@@ -37,7 +37,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder={placeholder}
-          className="flex-1 bg-transparent border-none text-discord-text text-sm focus:outline-none placeholder-discord-muted"
+          className="flex-1 bg-transparent border-none text-discord-text text-base sm:text-sm focus:outline-none placeholder-discord-muted"
         />
 
         <button

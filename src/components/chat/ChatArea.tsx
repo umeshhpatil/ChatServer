@@ -14,6 +14,7 @@ interface ChatAreaProps {
   isFlushingOutbox: boolean;
   onSendMessage: (body: string) => void;
   onFlushOutbox?: () => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export const ChatArea: React.FC<ChatAreaProps> = ({
@@ -26,15 +27,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   isFlushingOutbox,
   onSendMessage,
   onFlushOutbox,
+  onToggleMobileSidebar,
 }) => {
   return (
-    <div className="flex-1 flex flex-col h-full bg-discord-bg min-w-0">
+    <div className="flex-1 flex flex-col h-full bg-discord-bg min-w-0 w-full overflow-hidden">
       <ChatHeader
         title={title}
         isGroup={isGroup}
         isOnline={isOnline}
         isFlushingOutbox={isFlushingOutbox}
         onFlushOutbox={onFlushOutbox}
+        onToggleMobileSidebar={onToggleMobileSidebar}
       />
       <MessageList
         messages={messages}

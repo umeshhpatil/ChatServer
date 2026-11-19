@@ -48,6 +48,7 @@ export const MainPage: React.FC = () => {
   const [activeMode, setActiveMode] = useState<'dm' | 'group'>('dm');
   const [activeDmFriendshipId, setActiveDmFriendshipId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
 
   const handleDeleteGroup = async (groupId: string) => {
     await deleteGroup(groupId);
@@ -140,44 +141,66 @@ export const MainPage: React.FC = () => {
   const totalPendingNotifications = pendingRequests.length + groupInvites.length;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-discord-bg">
-      {/* 1. Left Rail (Group Icons + DM Home) */}
-      <ServerRail
-        groups={groups}
-        activeMode={activeMode}
-        activeGroupId={activeGroupId}
-        pendingNotificationCount={totalPendingNotifications}
-        isMuted={isMuted}
-        onSelectDm={() => {
-          setActiveMode('dm');
-          setActiveDmFriendshipId(null); // Return to Friends dashboard
-        }}
-        onSelectGroup={(groupId) => {
-          setActiveMode('group');
-          setActiveGroupId(groupId);
-        }}
-        onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
-        onToggleMute={toggleMute}
-        onSignOut={signOut}
-      />
+    <div className="flex h-screen w-screen overflow-hidden bg-discord-bg relative">
+      {/* Mobile Backdrop Overlay */}
+      {isMobileNavOpen && (
+        <div
+          onClick={() => setIsMobileNavOpen(false)}
+          className="fixed inset-0 z-30 bg-black/60 md:hidden backdrop-blur-sm transition-opacity"
+        />
+      )}
 
-      {/* 2. Sub-Sidebar (Friends List or Group Channels) */}
-      <SubSidebar
-        activeMode={activeMode}
-        activeDmFriendshipId={activeDmFriendshipId}
-        activeGroupId={activeGroupId}
-        groups={groups}
-        friends={friends}
-        currentProfile={profile}
-        pendingTotal={totalPendingNotifications}
-        onSelectFriendsTab={() => setActiveDmFriendshipId(null)}
-        onSelectFriendChat={(fId) => setActiveDmFriendshipId(fId)}
-        onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
-        onOpenInviteLink={() => setIsInviteLinkOpen(true)}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onDeleteGroup={handleDeleteGroup}
-        onLeaveGroup={handleLeaveGroup}
-      />
+      {/* Navigation Bars (Server Rail + Sub-Sidebar) */}
+      <div
+        className={`fixed inset-y-0 left-0 z-40 flex shadow-2xl md:shadow-none transition-transform duration-200 ease-in-out md:static md:translate-x-0 ${
+          isMobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
+        {/* 1. Left Rail (Group Icons + DM Home) */}
+        <ServerRail
+          groups={groups}
+          activeMode={activeMode}
+          activeGroupId={activeGroupId}
+          pendingNotificationCount={totalPendingNotifications}
+          isMuted={isMuted}
+          onSelectDm={() => {
+            setActiveMode('dm');
+            setActiveDmFriendshipId(null);
+            setIsMobileNavOpen(false);
+          }}
+          onSelectGroup={(groupId) => {
+            setActiveMode('group');
+            setActiveGroupId(groupId);
+          }}
+          onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+          onToggleMute={toggleMute}
+          onSignOut={signOut}
+        />
+
+        {/* 2. Sub-Sidebar (Friends List or Group Channels) */}
+        <SubSidebar
+          activeMode={activeMode}
+          activeDmFriendshipId={activeDmFriendshipId}
+          activeGroupId={activeGroupId}
+          groups={groups}
+          friends={friends}
+          currentProfile={profile}
+          pendingTotal={totalPendingNotifications}
+          onSelectFriendsTab={() => {
+            setActiveDmFriendshipId(null);
+            setIsMobileNavOpen(false);
+          }}
+          onSelectFriendChat={(fId) => {
+            setActiveDmFriendshipId(fId);
+            setIsMobileNavOpen(false);
+          }}
+          onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
+          onOpenInviteLink={() => setIsInviteLinkOpen(true)}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onDeleteGroup={handleDeleteGroup}
+          onLeaveGroup={handleLeaveGroup}
+        />
+      </div>
 
       {/* 3. Main Center Area */}
       {activeMode === 'dm' && activeDmFriendshipId === null ? (
@@ -187,12 +210,16 @@ export const MainPage: React.FC = () => {
           friends={friends}
           pendingRequests={pendingRequests}
           groupInvites={groupInvites}
-          onStartChat={(fId) => setActiveDmFriendshipId(fId)}
+          onStartChat={(fId) => {
+            setActiveDmFriendshipId(fId);
+            setIsMobileNavOpen(false);
+          }}
           onAcceptFriend={acceptFriendRequest}
           onDeclineFriend={declineFriendRequest}
           onAcceptGroupInvite={acceptGroupInvite}
           onDeclineGroupInvite={declineGroupInvite}
           onSendFriendRequest={sendFriendRequest}
+          onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
         />
       ) : (
         // Active Chat Area (Direct Message or Group Chat)
@@ -206,6 +233,7 @@ export const MainPage: React.FC = () => {
           isFlushingOutbox={isFlushingOutbox}
           onSendMessage={sendMessage}
           onFlushOutbox={flushOutbox}
+          onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
         />
       )}
 

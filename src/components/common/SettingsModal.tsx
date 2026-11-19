@@ -24,9 +24,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="bg-discord-side w-full max-w-lg rounded-lg overflow-hidden shadow-2xl border border-discord-border animate-in fade-in zoom-in-95 duration-150">
-        <div className="p-6 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-4">
+      <div className="bg-discord-side w-full max-w-lg rounded-lg overflow-hidden shadow-2xl border border-discord-border animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+        <div className="p-4 sm:p-6 relative overflow-y-auto">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-discord-muted hover:text-discord-text p-1"
