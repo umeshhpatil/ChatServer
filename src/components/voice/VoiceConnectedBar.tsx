@@ -75,3 +75,4 @@ export const VoiceConnectedBar: React.FC<VoiceConnectedBarProps> = ({
     </div>
   );
 };
+

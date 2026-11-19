@@ -143,8 +143,20 @@ export function useVoice({
       setConnectionStatus('connected');
       setPing(Math.floor(20 + Math.random() * 15));
 
+      // Always populate self immediately so user sees their avatar right away
+      const selfId = currentUserId || 'local-user';
+      const selfParticipant: VoiceParticipant = {
+        id: selfId,
+        username: currentUsername || 'User',
+        avatar_url: currentAvatarUrl || undefined,
+        isMuted: false,
+        isSpeaking: false,
+        joinedAt: new Date().toISOString(),
+      };
+      setParticipants(new Map([[selfId, selfParticipant]]));
+
       // Realtime Presence Channel for this voice room
-      if (isConfigured) {
+      if (isConfigured && currentUserId) {
         const chan = supabase.channel(`voice-presence:${channelId}`, {
           config: {
             presence: { key: currentUserId },
@@ -160,6 +172,10 @@ export function useVoice({
                 map.set(key, presences[0]);
               }
             });
+            // Ensure self remains visible even if presence propagation is in flight
+            if (!map.has(currentUserId)) {
+              map.set(currentUserId, selfParticipant);
+            }
             setParticipants(map);
           })
           .subscribe(async (status) => {
@@ -176,17 +192,6 @@ export function useVoice({
           });
 
         channelRef.current = chan;
-      } else {
-        // Fallback local participant
-        const selfParticipant: VoiceParticipant = {
-          id: currentUserId,
-          username: currentUsername || 'User',
-          avatar_url: currentAvatarUrl || undefined,
-          isMuted: false,
-          isSpeaking: false,
-          joinedAt: new Date().toISOString(),
-        };
-        setParticipants(new Map([[currentUserId, selfParticipant]]));
       }
     },
     [
@@ -278,3 +283,4 @@ export function useVoice({
     toggleDeafen,
   };
 }
+
