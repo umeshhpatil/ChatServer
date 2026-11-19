@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut, Check, Plus, Megaphone } from 'lucide-react';
+import { Users, Hash, UserPlus, Link as LinkIcon, Settings, Trash2, LogOut, Check, Plus, Megaphone, Volume2 } from 'lucide-react';
+import { VoiceConnectedBar } from '../voice/VoiceConnectedBar';
 import type { Friendship, Group, Profile, Channel } from '../../types/database';
 import type { UserStatus } from '../../hooks/usePresence';
 
@@ -14,11 +15,20 @@ interface SubSidebarProps {
   userStatus?: UserStatus;
   channels?: Channel[];
   activeChannelId?: string | null;
+  activeVoiceChannelId?: string | null;
+  activeVoiceChannelName?: string | null;
+  voicePing?: number;
+  isVoiceMuted?: boolean;
+  isVoiceDeafened?: boolean;
   onSelectFriendsTab: () => void;
   onSelectFriendChat: (friendshipId: string) => void;
   onSelectChannel?: (channelId: string) => void;
   onOpenCreateChannel?: () => void;
   onDeleteChannel?: (channelId: string) => void;
+  onJoinVoiceChannel?: (channelId: string, channelName: string) => void;
+  onLeaveVoiceChannel?: () => void;
+  onToggleVoiceMute?: () => void;
+  onToggleVoiceDeafen?: () => void;
   onOpenDirectInvite: () => void;
   onOpenInviteLink: () => void;
   onOpenSettings: () => void;
@@ -38,11 +48,20 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
   userStatus = 'online',
   channels = [],
   activeChannelId,
+  activeVoiceChannelId,
+  activeVoiceChannelName,
+  voicePing = 28,
+  isVoiceMuted = false,
+  isVoiceDeafened = false,
   onSelectFriendsTab,
   onSelectFriendChat,
   onSelectChannel,
   onOpenCreateChannel,
   onDeleteChannel,
+  onJoinVoiceChannel,
+  onLeaveVoiceChannel,
+  onToggleVoiceMute,
+  onToggleVoiceDeafen,
   onOpenDirectInvite,
   onOpenInviteLink,
   onOpenSettings,
@@ -258,6 +277,48 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
               })}
             </div>
 
+            {/* Voice Channels Category */}
+            <div className="mt-5">
+              <div className="flex items-center justify-between px-2 mb-1.5">
+                <span className="text-[11px] font-bold text-discord-muted uppercase tracking-wider">
+                  Voice Channels
+                </span>
+              </div>
+
+              <div className="space-y-0.5">
+                {[
+                  { id: `${activeGroupId}-voice-lounge`, name: 'Lounge' },
+                  { id: `${activeGroupId}-voice-general`, name: 'General Voice' },
+                ].map((vc) => {
+                  const isConnected = activeVoiceChannelId === vc.id;
+
+                  return (
+                    <div
+                      key={vc.id}
+                      onClick={() => onJoinVoiceChannel?.(vc.id, vc.name)}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer transition-colors group ${
+                        isConnected
+                          ? 'bg-discord-online/15 text-discord-online font-semibold'
+                          : 'text-discord-muted hover:bg-discord-input/60 hover:text-discord-text'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <Volume2
+                          className={`w-4 h-4 flex-shrink-0 ${
+                            isConnected ? 'text-discord-online animate-pulse' : 'text-discord-muted'
+                          }`}
+                        />
+                        <span className="text-sm font-medium truncate">{vc.name}</span>
+                      </div>
+                      {isConnected && (
+                        <span className="w-2 h-2 rounded-full bg-discord-online" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Group Actions */}
             <div className="mt-6 pt-4 border-t border-discord-border space-y-1">
               <button
@@ -299,6 +360,19 @@ export const SubSidebar: React.FC<SubSidebarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Voice Connected Bar (docked right above user profile) */}
+      {activeVoiceChannelId && onLeaveVoiceChannel && onToggleVoiceMute && onToggleVoiceDeafen && (
+        <VoiceConnectedBar
+          channelName={activeVoiceChannelName || 'Voice Room'}
+          ping={voicePing}
+          isMuted={isVoiceMuted}
+          isDeafened={isVoiceDeafened}
+          onDisconnect={onLeaveVoiceChannel}
+          onToggleMute={onToggleVoiceMute}
+          onToggleDeafen={onToggleVoiceDeafen}
+        />
+      )}
 
       {/* User Footer Panel */}
       <div className="h-14 bg-[#232428] px-2 flex items-center justify-between relative">

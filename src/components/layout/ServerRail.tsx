@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Plus, Volume2, VolumeX, LogOut } from 'lucide-react';
+import { MessageSquare, Plus, Volume2, VolumeX, LogOut, Compass } from 'lucide-react';
 import type { Group } from '../../types/database';
 
 interface ServerRailProps {
@@ -11,6 +11,7 @@ interface ServerRailProps {
   onSelectDm: () => void;
   onSelectGroup: (groupId: string) => void;
   onOpenCreateGroup: () => void;
+  onOpenExplore?: () => void;
   onToggleMute: () => void;
   onSignOut: () => void;
 }
@@ -24,6 +25,7 @@ export const ServerRail: React.FC<ServerRailProps> = ({
   onSelectDm,
   onSelectGroup,
   onOpenCreateGroup,
+  onOpenExplore,
   onToggleMute,
   onSignOut,
 }) => {
@@ -102,12 +104,25 @@ export const ServerRail: React.FC<ServerRailProps> = ({
         <div className="group flex items-center justify-center w-full">
           <button
             onClick={onOpenCreateGroup}
-            className="w-12 h-12 bg-discord-side text-discord-online hover:bg-discord-online hover:text-white rounded-3xl hover:rounded-2xl flex items-center justify-center transition-all duration-200"
-            title="Create a Group"
+            className="w-12 h-12 bg-discord-side text-discord-online hover:bg-discord-online hover:text-white rounded-3xl hover:rounded-2xl flex items-center justify-center transition-all duration-200 shadow"
+            title="Create a Server"
           >
             <Plus className="w-6 h-6" />
           </button>
         </div>
+
+        {/* Explore Public Communities Button */}
+        {onOpenExplore && (
+          <div className="group flex items-center justify-center w-full pt-1">
+            <button
+              onClick={onOpenExplore}
+              className="w-12 h-12 bg-discord-side text-discord-accent hover:bg-discord-accent hover:text-white rounded-3xl hover:rounded-2xl flex items-center justify-center transition-all duration-200 shadow"
+              title="Explore Public Servers"
+            >
+              <Compass className="w-6 h-6" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom utility buttons */}

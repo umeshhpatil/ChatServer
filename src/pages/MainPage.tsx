@@ -6,6 +6,8 @@ import { useSocial } from '../hooks/useSocial';
 import { useChat } from '../hooks/useChat';
 import { usePresence } from '../hooks/usePresence';
 import { useChannels } from '../hooks/useChannels';
+import { useVoice } from '../hooks/useVoice';
+import { useNotifications } from '../hooks/useNotifications';
 import { ServerRail } from '../components/layout/ServerRail';
 import { SubSidebar } from '../components/layout/SubSidebar';
 import { FriendsView } from '../components/friends/FriendsView';
@@ -17,6 +19,8 @@ import { CreateChannelModal } from '../components/groups/CreateChannelModal';
 import { DirectInviteModal } from '../components/groups/DirectInviteModal';
 import { InviteLinkModal } from '../components/groups/InviteLinkModal';
 import { SettingsModal } from '../components/common/SettingsModal';
+import { ExploreServersModal } from '../components/servers/ExploreServersModal';
+import { VoiceChannelOverlay } from '../components/voice/VoiceChannelOverlay';
 
 export const MainPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -25,7 +29,40 @@ export const MainPage: React.FC = () => {
   const { user, profile, loading: authLoading, signUp, signIn, signOut } = useAuth();
 
   // Web Audio Sound Hook
-  const { isMuted, toggleMute, playSendSound, playReceiveSound } = useSound();
+  const {
+    isMuted,
+    toggleMute,
+    playSendSound,
+    playReceiveSound,
+    playVoiceConnectSound,
+    playVoiceDisconnectSound,
+    playToggleMicSound,
+  } = useSound();
+
+  // Native Browser Notifications Hook
+  const { requestPermission, notifyMessage } = useNotifications();
+
+  // WebRTC Voice Channels Hook
+  const {
+    activeVoiceChannelId,
+    activeVoiceChannelName,
+    participants: voiceParticipants,
+    isMuted: isVoiceMuted,
+    isDeafened: isVoiceDeafened,
+    isSpeaking: isVoiceSpeaking,
+    ping: voicePing,
+    joinVoiceChannel,
+    leaveVoiceChannel,
+    toggleMute: toggleVoiceMute,
+    toggleDeafen: toggleVoiceDeafen,
+  } = useVoice({
+    currentUserId: profile?.id ?? null,
+    currentUsername: profile?.username ?? null,
+    currentAvatarUrl: profile?.avatar_url ?? null,
+    playVoiceConnectSound,
+    playVoiceDisconnectSound,
+    playToggleMicSound,
+  });
 
   // Social & Groups Hook
   const {
@@ -58,6 +95,7 @@ export const MainPage: React.FC = () => {
   const [activeMode, setActiveMode] = useState<'dm' | 'group'>('dm');
   const [activeDmFriendshipId, setActiveDmFriendshipId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [isViewingVoice, setIsViewingVoice] = useState<boolean>(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
   const [isMemberListOpen, setIsMemberListOpen] = useState<boolean>(true);
 
@@ -116,6 +154,7 @@ export const MainPage: React.FC = () => {
   const [isDirectInviteOpen, setIsDirectInviteOpen] = useState(false);
   const [isInviteLinkOpen, setIsInviteLinkOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
 
   // Channels Hook for Active Server
   const {
@@ -155,6 +194,9 @@ export const MainPage: React.FC = () => {
     currentUsername: profile?.username ?? null,
     playSendSound,
     playReceiveSound,
+    onIncomingMessage: (sender, body, avatar) => {
+      notifyMessage(`${sender} on GhostText`, body, avatar);
+    },
   });
 
   // Loading screen during initial session check
@@ -224,13 +266,16 @@ export const MainPage: React.FC = () => {
           onSelectDm={() => {
             setActiveMode('dm');
             setActiveDmFriendshipId(null);
+            setIsViewingVoice(false);
             setIsMobileNavOpen(false);
           }}
           onSelectGroup={(groupId) => {
             setActiveMode('group');
             setActiveGroupId(groupId);
+            setIsViewingVoice(false);
           }}
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
+          onOpenExplore={() => setIsExploreOpen(true)}
           onToggleMute={toggleMute}
           onSignOut={signOut}
         />
@@ -247,20 +292,39 @@ export const MainPage: React.FC = () => {
           userStatus={myStatus}
           channels={channels}
           activeChannelId={activeChannelId}
+          activeVoiceChannelId={activeVoiceChannelId}
+          activeVoiceChannelName={activeVoiceChannelName}
+          voicePing={voicePing}
+          isVoiceMuted={isVoiceMuted}
+          isVoiceDeafened={isVoiceDeafened}
           onSelectFriendsTab={() => {
             setActiveDmFriendshipId(null);
+            setIsViewingVoice(false);
             setIsMobileNavOpen(false);
           }}
           onSelectFriendChat={(fId) => {
             setActiveDmFriendshipId(fId);
+            setIsViewingVoice(false);
             setIsMobileNavOpen(false);
           }}
           onSelectChannel={(cId) => {
             setActiveChannelId(cId);
+            setIsViewingVoice(false);
             setIsMobileNavOpen(false);
           }}
           onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
           onDeleteChannel={deleteChannel}
+          onJoinVoiceChannel={(channelId, channelName) => {
+            joinVoiceChannel(channelId, channelName);
+            setIsViewingVoice(true);
+            setIsMobileNavOpen(false);
+          }}
+          onLeaveVoiceChannel={() => {
+            leaveVoiceChannel();
+            setIsViewingVoice(false);
+          }}
+          onToggleVoiceMute={toggleVoiceMute}
+          onToggleVoiceDeafen={toggleVoiceDeafen}
           onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
           onOpenInviteLink={() => setIsInviteLinkOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
@@ -271,7 +335,25 @@ export const MainPage: React.FC = () => {
       </div>
 
       {/* 3. Main Center Area */}
-      {activeMode === 'dm' && activeDmFriendshipId === null ? (
+      {isViewingVoice && activeVoiceChannelId ? (
+        // Voice Channel Overlay Grid
+        <VoiceChannelOverlay
+          channelName={activeVoiceChannelName || 'Voice Lounge'}
+          participants={Array.from(voiceParticipants.values())}
+          currentUserId={profile?.id ?? null}
+          isMuted={isVoiceMuted}
+          isDeafened={isVoiceDeafened}
+          isSpeaking={isVoiceSpeaking}
+          onDisconnect={() => {
+            leaveVoiceChannel();
+            setIsViewingVoice(false);
+          }}
+          onToggleMute={toggleVoiceMute}
+          onToggleDeafen={toggleVoiceDeafen}
+          onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
+          onBackToChat={() => setIsViewingVoice(false)}
+        />
+      ) : activeMode === 'dm' && activeDmFriendshipId === null ? (
         // Friends Dashboard View
         <FriendsView
           currentProfile={profile}
@@ -349,6 +431,20 @@ export const MainPage: React.FC = () => {
         isOpen={isCreateChannelOpen}
         onClose={() => setIsCreateChannelOpen(false)}
         onCreateChannel={createChannel}
+      />
+
+      <ExploreServersModal
+        isOpen={isExploreOpen}
+        onClose={() => setIsExploreOpen(false)}
+        onJoinServer={async (serverName) => {
+          const newId = await createGroup(serverName);
+          if (newId) {
+            setActiveMode('group');
+            setActiveGroupId(newId);
+          }
+          setIsExploreOpen(false);
+        }}
+        existingGroups={groups}
       />
 
       <DirectInviteModal
