@@ -4,10 +4,12 @@ import { useAuth } from '../hooks/useAuth';
 import { useSound } from '../hooks/useSound';
 import { useSocial } from '../hooks/useSocial';
 import { useChat } from '../hooks/useChat';
+import { usePresence } from '../hooks/usePresence';
 import { ServerRail } from '../components/layout/ServerRail';
 import { SubSidebar } from '../components/layout/SubSidebar';
 import { FriendsView } from '../components/friends/FriendsView';
 import { ChatArea } from '../components/chat/ChatArea';
+import { MemberListDrawer } from '../components/groups/MemberListDrawer';
 import { AuthScreen } from '../components/auth/AuthScreen';
 import { CreateGroupModal } from '../components/groups/CreateGroupModal';
 import { DirectInviteModal } from '../components/groups/DirectInviteModal';
@@ -44,11 +46,18 @@ export const MainPage: React.FC = () => {
     playReceiveSound,
   });
 
+  // Global Realtime Presence (Online, Idle, DND, Offline)
+  const { myStatus, updateStatus, getUserStatus } = usePresence(
+    profile?.id ?? null,
+    profile?.username ?? null
+  );
+
   // UI Navigation State
   const [activeMode, setActiveMode] = useState<'dm' | 'group'>('dm');
   const [activeDmFriendshipId, setActiveDmFriendshipId] = useState<string | null>(null);
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState<boolean>(false);
+  const [isMemberListOpen, setIsMemberListOpen] = useState<boolean>(true);
 
   const handleDeleteGroup = async (groupId: string) => {
     await deleteGroup(groupId);
@@ -116,12 +125,16 @@ export const MainPage: React.FC = () => {
     loading: chatLoading,
     isOnline,
     isFlushingOutbox,
+    typingUsers,
     sendMessage,
+    sendTyping,
+    toggleReaction,
     flushOutbox,
   } = useChat({
     chatId: activeChatId,
     chatType: activeChatType,
     currentUserId: profile?.id ?? null,
+    currentUsername: profile?.username ?? null,
     playSendSound,
     playReceiveSound,
   });
@@ -210,6 +223,7 @@ export const MainPage: React.FC = () => {
           friends={friends}
           currentProfile={profile}
           pendingTotal={totalPendingNotifications}
+          userStatus={myStatus}
           onSelectFriendsTab={() => {
             setActiveDmFriendshipId(null);
             setIsMobileNavOpen(false);
@@ -221,6 +235,7 @@ export const MainPage: React.FC = () => {
           onOpenDirectInvite={() => setIsDirectInviteOpen(true)}
           onOpenInviteLink={() => setIsInviteLinkOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onStatusChange={updateStatus}
           onDeleteGroup={handleDeleteGroup}
           onLeaveGroup={handleLeaveGroup}
         />
@@ -235,6 +250,7 @@ export const MainPage: React.FC = () => {
           pendingRequests={pendingRequests}
           groupInvites={groupInvites}
           groups={groups}
+          getUserStatus={getUserStatus}
           onStartChat={(fId) => {
             setActiveDmFriendshipId(fId);
             setIsMobileNavOpen(false);
@@ -253,19 +269,34 @@ export const MainPage: React.FC = () => {
           onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
         />
       ) : (
-        // Active Chat Area (Direct Message or Group Chat)
-        <ChatArea
-          title={chatTitle}
-          isGroup={activeMode === 'group'}
-          messages={messages}
-          currentUserId={profile?.id ?? null}
-          loading={chatLoading}
-          isOnline={isOnline}
-          isFlushingOutbox={isFlushingOutbox}
-          onSendMessage={sendMessage}
-          onFlushOutbox={flushOutbox}
-          onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
-        />
+        // Active Chat Area + Server Member List (when in group mode)
+        <div className="flex-1 flex h-[100dvh] max-h-[100dvh] min-h-0 min-w-0 overflow-hidden relative">
+          <ChatArea
+            title={chatTitle}
+            isGroup={activeMode === 'group'}
+            messages={messages}
+            currentUserId={profile?.id ?? null}
+            loading={chatLoading}
+            isOnline={isOnline}
+            isFlushingOutbox={isFlushingOutbox}
+            typingUsers={typingUsers}
+            isMemberListOpen={isMemberListOpen}
+            onSendMessage={sendMessage}
+            onTyping={sendTyping}
+            onToggleReaction={toggleReaction}
+            onFlushOutbox={flushOutbox}
+            onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
+            onToggleMemberList={() => setIsMemberListOpen((prev) => !prev)}
+          />
+          {activeMode === 'group' && (
+            <MemberListDrawer
+              groupId={activeGroupId}
+              isOpen={isMemberListOpen}
+              onClose={() => setIsMemberListOpen(false)}
+              getUserStatus={getUserStatus}
+            />
+          )}
+        </div>
       )}
 
       {/* Modals */}

@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, isConfigured } from '../lib/supabase';
 import { localDb, type LocalOutboxMessage } from '../lib/db';
-import type { Message, ChatType } from '../types/database';
+import type { Message, ChatType, MessageReaction, ReactionGroup } from '../types/database';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface UseChatOptions {
   chatId: string | null;
   chatType: ChatType | null;
   currentUserId: string | null;
+  currentUsername?: string | null;
   playSendSound: () => void;
   playReceiveSound: (force?: boolean) => void;
 }
@@ -16,6 +17,7 @@ export function useChat({
   chatId,
   chatType,
   currentUserId,
+  currentUsername,
   playSendSound,
   playReceiveSound,
 }: UseChatOptions) {
@@ -23,11 +25,16 @@ export function useChat({
   const [loading, setLoading] = useState<boolean>(true);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isFlushingOutbox, setIsFlushingOutbox] = useState<boolean>(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
 
   const activeChatRef = useRef<{ id: string | null; type: ChatType | null }>({
     id: chatId,
     type: chatType,
   });
+
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const lastTypingSentRef = useRef<number>(0);
+  const typingTimeoutsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     activeChatRef.current = { id: chatId, type: chatType };
@@ -71,9 +78,7 @@ export function useChat({
           });
 
           if (!error || error.code === '23505') {
-            // Success or duplicate already recorded
             await localDb.outbox.delete(item.client_id);
-            // Update local message status
             setMessages((prev) =>
               prev.map((m) =>
                 m.client_id === item.client_id ? { ...m, status: 'sent' } : m
@@ -89,7 +94,7 @@ export function useChat({
           }
         } catch (err: unknown) {
           console.error('Network error during outbox flush:', err);
-          break; // Stop flushing until connection is fully stable
+          break;
         }
       }
     } finally {
@@ -97,11 +102,52 @@ export function useChat({
     }
   }, []);
 
+  // Helper to group reactions by emoji
+  const processReactions = useCallback(
+    (rawReactions: MessageReaction[]): Map<string, ReactionGroup[]> => {
+      const grouped = new Map<string, Map<string, { count: number; hasReacted: boolean; users: string[] }>>();
+
+      rawReactions.forEach((r) => {
+        if (!grouped.has(r.message_id)) {
+          grouped.set(r.message_id, new Map());
+        }
+        const msgMap = grouped.get(r.message_id)!;
+        if (!msgMap.has(r.emoji)) {
+          msgMap.set(r.emoji, { count: 0, hasReacted: false, users: [] });
+        }
+        const emojiData = msgMap.get(r.emoji)!;
+        emojiData.count += 1;
+        emojiData.users.push(r.user_id);
+        if (r.user_id === currentUserId) {
+          emojiData.hasReacted = true;
+        }
+      });
+
+      const result = new Map<string, ReactionGroup[]>();
+      grouped.forEach((emojis, msgId) => {
+        const list: ReactionGroup[] = [];
+        emojis.forEach((data, emoji) => {
+          list.push({
+            emoji,
+            count: data.count,
+            hasReacted: data.hasReacted,
+            users: data.users,
+          });
+        });
+        result.set(msgId, list);
+      });
+
+      return result;
+    },
+    [currentUserId]
+  );
+
   // Load cached messages and fetch remote
   useEffect(() => {
     if (!chatId) {
       setMessages([]);
       setLoading(false);
+      setTypingUsers([]);
       return;
     }
 
@@ -116,7 +162,6 @@ export function useChat({
           .equals(chatId)
           .sortBy('created_at');
 
-        // Also check if there are pending outbox messages for this chat
         const outboxItems = await localDb.outbox
           .where('chat_id')
           .equals(chatId)
@@ -152,10 +197,10 @@ export function useChat({
       return;
     }
 
-    // 2. Fetch fresh messages from Supabase
+    // 2. Fetch fresh messages & reactions from Supabase
     const fetchRemote = async () => {
       try {
-        const { data, error } = await supabase
+        const { data: msgs, error } = await supabase
           .from('messages')
           .select('*, sender:profiles(id, username, avatar_url)')
           .eq('chat_id', chatId)
@@ -167,16 +212,35 @@ export function useChat({
           return;
         }
 
-        if (data && isMounted) {
-          // Persist remote messages to IndexedDB
+        if (msgs && isMounted) {
+          // Fetch reactions for these messages
+          const msgIds = msgs.map((m) => m.id);
+          let reactionsMap = new Map<string, ReactionGroup[]>();
+
+          if (msgIds.length > 0) {
+            const { data: rawReactions } = await supabase
+              .from('message_reactions')
+              .select('*')
+              .in('message_id', msgIds);
+
+            if (rawReactions) {
+              reactionsMap = processReactions(rawReactions as MessageReaction[]);
+            }
+          }
+
+          const decoratedMsgs = msgs.map((m) => ({
+            ...m,
+            status: 'sent' as const,
+            reactions: reactionsMap.get(m.id) || [],
+          }));
+
           await localDb.messages.bulkPut(
-            data.map((m) => ({
+            decoratedMsgs.map((m) => ({
               ...m,
               status: 'sent',
             }))
           );
 
-          // Merge with any still-queued outbox items
           const outboxItems = await localDb.outbox
             .where('chat_id')
             .equals(chatId)
@@ -193,7 +257,7 @@ export function useChat({
             status: o.status,
           }));
 
-          const all = [...data, ...pendingMessages].sort(
+          const all = [...decoratedMsgs, ...pendingMessages].sort(
             (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           );
 
@@ -208,11 +272,11 @@ export function useChat({
 
     fetchRemote();
 
-    // 3. Supabase Realtime Subscription
+    // 3. Supabase Realtime Channel (Messages, Reactions, & Live Typing Broadcast)
     let channel: RealtimeChannel | null = null;
     try {
       channel = supabase
-        .channel(`messages:${chatId}`)
+        .channel(`chat-room:${chatId}`)
         .on(
           'postgres_changes',
           {
@@ -224,7 +288,6 @@ export function useChat({
           async (payload) => {
             const newMsg = payload.new as Message;
 
-            // Fetch sender profile if not already included
             if (!newMsg.sender && newMsg.sender_id) {
               const { data: senderData } = await supabase
                 .from('profiles')
@@ -236,15 +299,12 @@ export function useChat({
               }
             }
 
-            // Save to IndexedDB
             await localDb.messages.put({
               ...newMsg,
               status: 'sent',
             });
 
-            // Update UI state
             setMessages((prev) => {
-              // Deduplicate if client_id exists
               const existingIndex = prev.findIndex(
                 (m) =>
                   (newMsg.client_id && m.client_id === newMsg.client_id) ||
@@ -252,15 +312,13 @@ export function useChat({
               );
               if (existingIndex !== -1) {
                 const next = [...prev];
-                next[existingIndex] = { ...newMsg, status: 'sent' };
+                next[existingIndex] = { ...newMsg, status: 'sent', reactions: prev[existingIndex].reactions || [] };
                 return next;
               }
-              return [...prev, { ...newMsg, status: 'sent' }];
+              return [...prev, { ...newMsg, status: 'sent', reactions: [] }];
             });
 
-            // If incoming from someone else:
             if (newMsg.sender_id !== currentUserId) {
-              // Spec: Skip sound when user is already looking at that chat in a visible tab
               const isLookingAtChat =
                 document.visibilityState === 'visible' &&
                 document.hasFocus() &&
@@ -272,7 +330,72 @@ export function useChat({
             }
           }
         )
+        // Realtime Reactions
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'message_reactions',
+          },
+          async () => {
+            // Refresh reactions for current messages
+            setMessages((prev) => {
+              const currentIds = prev.map((m) => m.id);
+              if (currentIds.length === 0) return prev;
+
+              supabase
+                .from('message_reactions')
+                .select('*')
+                .in('message_id', currentIds)
+                .then(({ data: rawReactions }) => {
+                  if (rawReactions) {
+                    const rMap = processReactions(rawReactions as MessageReaction[]);
+                    setMessages((curr) =>
+                      curr.map((m) => ({
+                        ...m,
+                        reactions: rMap.get(m.id) || [],
+                      }))
+                    );
+                  }
+                });
+
+              return prev;
+            });
+          }
+        )
+        // Realtime Broadcast: Typing Indicator
+        .on('broadcast', { event: 'typing' }, ({ payload }) => {
+          const { userId, username: typingUsername } = payload as {
+            userId: string;
+            username: string;
+          };
+
+          if (userId === currentUserId) return;
+
+          // Add to typing users
+          setTypingUsers((prev) => {
+            if (!prev.includes(typingUsername)) {
+              return [...prev, typingUsername];
+            }
+            return prev;
+          });
+
+          // Reset clear timeout (auto-clear after 2.5s)
+          if (typingTimeoutsRef.current.has(userId)) {
+            window.clearTimeout(typingTimeoutsRef.current.get(userId));
+          }
+
+          const timeoutId = window.setTimeout(() => {
+            setTypingUsers((prev) => prev.filter((u) => u !== typingUsername));
+            typingTimeoutsRef.current.delete(userId);
+          }, 2500);
+
+          typingTimeoutsRef.current.set(userId, timeoutId);
+        })
         .subscribe();
+
+      channelRef.current = channel;
     } catch (realtimeErr) {
       console.warn('Realtime subscription error:', realtimeErr);
     }
@@ -282,8 +405,32 @@ export function useChat({
       if (channel) {
         supabase.removeChannel(channel);
       }
+      typingTimeoutsRef.current.forEach((t) => window.clearTimeout(t));
+      typingTimeoutsRef.current.clear();
+      setTypingUsers([]);
     };
-  }, [chatId, currentUserId, playReceiveSound]);
+  }, [chatId, currentUserId, playReceiveSound, processReactions]);
+
+  // Send broadcast typing event
+  const sendTyping = useCallback(() => {
+    if (!channelRef.current || !currentUserId || !currentUsername) return;
+
+    const now = Date.now();
+    // Throttle typing broadcasts to once every 1.5 seconds
+    if (now - lastTypingSentRef.current > 1500) {
+      lastTypingSentRef.current = now;
+      channelRef.current
+        .send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: {
+            userId: currentUserId,
+            username: currentUsername,
+          },
+        })
+        .catch(() => {});
+    }
+  }, [currentUserId, currentUsername]);
 
   // Send message function with instant whoosh sound & offline queue
   const sendMessage = useCallback(
@@ -293,7 +440,6 @@ export function useChat({
       const clientId = crypto.randomUUID();
       const timestamp = new Date().toISOString();
 
-      // Play outgoing whoosh immediately (even offline)
       playSendSound();
 
       const optimisticMsg: Message = {
@@ -305,12 +451,11 @@ export function useChat({
         client_id: clientId,
         created_at: timestamp,
         status: navigator.onLine ? 'sending' : 'queued',
+        reactions: [],
       };
 
-      // 1. Optimistic UI update
       setMessages((prev) => [...prev, optimisticMsg]);
 
-      // 2. Put in local Dexie outbox
       const outboxEntry: LocalOutboxMessage = {
         client_id: clientId,
         chat_id: chatId,
@@ -323,12 +468,10 @@ export function useChat({
       };
       await localDb.outbox.put(outboxEntry);
 
-      // 3. If offline, keep in outbox
       if (!navigator.onLine || !isConfigured) {
         return;
       }
 
-      // 4. Send to Supabase
       try {
         const { data, error } = await supabase
           .from('messages')
@@ -355,13 +498,12 @@ export function useChat({
             )
           );
         } else {
-          // Success! Clean up outbox & update message
           await localDb.outbox.delete(clientId);
           if (data) {
             await localDb.messages.put({ ...data, status: 'sent' });
             setMessages((prev) =>
               prev.map((m) =>
-                m.client_id === clientId ? { ...data, status: 'sent' } : m
+                m.client_id === clientId ? { ...data, status: 'sent', reactions: [] } : m
               )
             );
           }
@@ -382,13 +524,95 @@ export function useChat({
     [chatId, chatType, currentUserId, playSendSound]
   );
 
+  // Toggle emoji reaction (add or remove)
+  const toggleReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!currentUserId || !isConfigured) return;
+
+      // Find current message
+      const msg = messages.find((m) => m.id === messageId || m.client_id === messageId);
+      if (!msg) return;
+
+      const existingReaction = msg.reactions?.find((r) => r.emoji === emoji);
+      const hasReacted = existingReaction?.hasReacted;
+
+      // Optimistic UI update
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m.id !== messageId && m.client_id !== messageId) return m;
+
+          const currentReactions = m.reactions || [];
+          let updated: ReactionGroup[];
+
+          if (hasReacted) {
+            // Remove
+            updated = currentReactions
+              .map((r) =>
+                r.emoji === emoji
+                  ? {
+                      ...r,
+                      count: r.count - 1,
+                      hasReacted: false,
+                      users: r.users.filter((u) => u !== currentUserId),
+                    }
+                  : r
+              )
+              .filter((r) => r.count > 0);
+          } else {
+            // Add
+            const found = currentReactions.find((r) => r.emoji === emoji);
+            if (found) {
+              updated = currentReactions.map((r) =>
+                r.emoji === emoji
+                  ? {
+                      ...r,
+                      count: r.count + 1,
+                      hasReacted: true,
+                      users: [...r.users, currentUserId],
+                    }
+                  : r
+              );
+            } else {
+              updated = [
+                ...currentReactions,
+                { emoji, count: 1, hasReacted: true, users: [currentUserId] },
+              ];
+            }
+          }
+
+          return { ...m, reactions: updated };
+        })
+      );
+
+      try {
+        if (hasReacted) {
+          await supabase
+            .from('message_reactions')
+            .delete()
+            .match({ message_id: messageId, user_id: currentUserId, emoji });
+        } else {
+          await supabase.from('message_reactions').insert({
+            message_id: messageId,
+            user_id: currentUserId,
+            emoji,
+          });
+        }
+      } catch (err) {
+        console.error('Error toggling reaction:', err);
+      }
+    },
+    [currentUserId, messages]
+  );
+
   return {
     messages,
     loading,
     isOnline,
     isFlushingOutbox,
+    typingUsers,
     sendMessage,
+    sendTyping,
+    toggleReaction,
     flushOutbox,
   };
 }
-

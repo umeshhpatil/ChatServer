@@ -1,13 +1,15 @@
 import React from 'react';
-import { Hash, AtSign, Wifi, WifiOff, RefreshCw, Menu } from 'lucide-react';
+import { Hash, AtSign, Wifi, WifiOff, RefreshCw, Menu, Users } from 'lucide-react';
 
 interface ChatHeaderProps {
   title: string;
   isGroup: boolean;
   isOnline: boolean;
   isFlushingOutbox: boolean;
+  isMemberListOpen?: boolean;
   onFlushOutbox?: () => void;
   onToggleMobileSidebar?: () => void;
+  onToggleMemberList?: () => void;
 }
 
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
@@ -15,8 +17,10 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
   isGroup,
   isOnline,
   isFlushingOutbox,
+  isMemberListOpen = false,
   onFlushOutbox,
   onToggleMobileSidebar,
+  onToggleMemberList,
 }) => {
   return (
     <div className="h-12 border-b border-discord-border px-3 sm:px-4 flex items-center justify-between shadow-sm bg-discord-bg flex-shrink-0">
@@ -59,6 +63,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
           >
             <Wifi className="w-3.5 h-3.5 text-discord-online" />
             <span className="text-discord-online text-[11px] sm:text-xs hidden sm:inline">Connected</span>
+          </button>
+        )}
+        {/* Server Member List Drawer Toggle (only for groups) */}
+        {isGroup && onToggleMemberList && (
+          <button
+            onClick={onToggleMemberList}
+            className={`p-1.5 rounded transition-colors ${
+              isMemberListOpen
+                ? 'bg-discord-input text-discord-text'
+                : 'text-discord-muted hover:text-discord-text hover:bg-discord-input/60'
+            }`}
+            title="Toggle Member List"
+          >
+            <Users className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         )}
       </div>
