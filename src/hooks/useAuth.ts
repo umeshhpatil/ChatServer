@@ -40,7 +40,7 @@ export function useAuth() {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching profile:', error);
@@ -67,7 +67,7 @@ export function useAuth() {
             avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${defaultName}`,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (newProf) {
           setProfile(newProf as Profile);

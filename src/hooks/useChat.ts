@@ -230,7 +230,7 @@ export function useChat({
                 .from('profiles')
                 .select('id, username, avatar_url')
                 .eq('id', newMsg.sender_id)
-                .single();
+                .maybeSingle();
               if (senderData) {
                 newMsg.sender = senderData;
               }

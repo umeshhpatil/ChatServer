@@ -175,7 +175,7 @@ export function useSocial({ userId, playReceiveSound }: UseSocialOptions) {
       .from('profiles')
       .select('id, username')
       .ilike('username', cleanUsername)
-      .single();
+      .maybeSingle();
 
     if (profileErr || !targetProfile) {
       throw new Error(`User "${cleanUsername}" was not found.`);
