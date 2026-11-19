@@ -226,6 +226,44 @@ begin
 end;
 $$;
 
+-- Trigger to broadcast celebratory join message in real time when a new member joins
+create or replace function public.on_group_member_joined()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  grp_owner_id uuid;
+begin
+  select owner_id into grp_owner_id from public.groups where id = new.group_id;
+
+  -- Broadcast join event for all joins (skip only the very first creation by owner)
+  if grp_owner_id is distinct from new.user_id or new.role <> 'owner' then
+    insert into public.messages (
+      chat_type,
+      chat_id,
+      sender_id,
+      body,
+      created_at
+    )
+    values (
+      'group',
+      new.group_id,
+      new.user_id,
+      'joined the server. Welcome! 🎉',
+      now()
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists tr_on_group_member_joined on public.group_members;
+create trigger tr_on_group_member_joined
+  after insert on public.group_members
+  for each row execute procedure public.on_group_member_joined();
+
 
 -- 5. GROUP INVITES TABLE (Direct friend invitations)
 create table if not exists public.group_invites (

@@ -23,6 +23,27 @@ body {
   color: var(--text);
   font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Safe area inset helpers for modern mobile devices */
+.safe-pb {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.safe-pt {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
 }
 
 /* Discord-style custom scrollbar */

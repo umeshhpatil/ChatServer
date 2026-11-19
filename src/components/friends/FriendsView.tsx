@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Users, UserPlus, MessageSquare, Check, X, Mail, Menu } from 'lucide-react';
-import type { Friendship, GroupInvite, Profile } from '../../types/database';
+import { Users, UserPlus, MessageSquare, Check, X, Mail, Menu, Hash, Plus } from 'lucide-react';
+import type { Friendship, Group, GroupInvite, Profile } from '../../types/database';
 
 interface FriendsViewProps {
   currentProfile: Profile | null;
   friends: Friendship[];
   pendingRequests: Friendship[];
   groupInvites: GroupInvite[];
+  groups?: Group[];
   onStartChat: (friendshipId: string) => void;
   onAcceptFriend: (friendshipId: string) => Promise<void>;
   onDeclineFriend: (friendshipId: string) => Promise<void>;
@@ -14,6 +15,8 @@ interface FriendsViewProps {
   onDeclineGroupInvite: (inviteId: string) => Promise<void>;
   onSendFriendRequest: (username: string) => Promise<void>;
   onToggleMobileSidebar?: () => void;
+  onSelectGroup?: (groupId: string) => void;
+  onOpenCreateGroup?: () => void;
 }
 
 type TabType = 'all' | 'pending' | 'invites' | 'add';
@@ -23,6 +26,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   friends,
   pendingRequests,
   groupInvites,
+  groups = [],
   onStartChat,
   onAcceptFriend,
   onDeclineFriend,
@@ -30,6 +34,8 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   onDeclineGroupInvite,
   onSendFriendRequest,
   onToggleMobileSidebar,
+  onSelectGroup,
+  onOpenCreateGroup,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [targetUsername, setTargetUsername] = useState('');
@@ -143,7 +149,7 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
       </div>
 
       {/* Tab Contents */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6">
         {/* ALL FRIENDS */}
         {activeTab === 'all' && (
           <div>
@@ -152,12 +158,74 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
             </div>
 
             {friends.length === 0 ? (
-              <div className="text-center py-16 text-discord-muted">
-                <Users className="w-16 h-16 mx-auto mb-3 opacity-30" />
-                <p className="text-base font-semibold">No friends yet</p>
-                <p className="text-xs mt-1">
-                  Click the "Add Friend" tab above to connect with other users!
-                </p>
+              <div className="py-6 sm:py-10 max-w-lg mx-auto text-center space-y-5">
+                <div className="w-16 h-16 rounded-full bg-discord-side/80 flex items-center justify-center text-discord-muted mx-auto">
+                  <Users className="w-8 h-8 opacity-40" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-discord-text mb-1">
+                    No friends connected yet
+                  </h3>
+                  <p className="text-xs sm:text-sm text-discord-muted">
+                    Add friends with their username or jump straight into a server chat below!
+                  </p>
+                </div>
+
+                {/* Quick Server Access Cards */}
+                {groups.length > 0 && (
+                  <div className="bg-discord-side/60 border border-discord-border rounded-xl p-3 sm:p-4 text-left space-y-3">
+                    <div className="text-xs font-bold text-discord-muted uppercase tracking-wider">
+                      Your Active Servers
+                    </div>
+                    <div className="space-y-2">
+                      {groups.map((g) => (
+                        <div
+                          key={g.id}
+                          className="flex items-center justify-between bg-discord-bg/90 p-3 rounded-lg border border-discord-border/50"
+                        >
+                          <div className="flex items-center space-x-3 min-w-0 pr-2">
+                            <div className="w-9 h-9 rounded-xl bg-discord-accent text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+                              {g.name[0]?.toUpperCase() || 'G'}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-sm text-discord-text truncate">{g.name}</div>
+                              <div className="text-[11px] text-discord-muted flex items-center space-x-1">
+                                <Hash className="w-3 h-3" />
+                                <span>general</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => onSelectGroup?.(g.id)}
+                            className="px-3.5 py-1.5 bg-discord-online hover:bg-discord-online/90 text-white rounded text-xs font-semibold transition-colors flex items-center space-x-1.5 shadow flex-shrink-0"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            <span>Open Chat</span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+                  <button
+                    onClick={() => setActiveTab('add')}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-discord-online hover:bg-discord-online/90 text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>Add a Friend</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenCreateGroup}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-discord-accent hover:bg-discord-accent-hover text-white rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create a Server</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="divide-y divide-discord-border/50">

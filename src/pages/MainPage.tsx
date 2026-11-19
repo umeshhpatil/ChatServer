@@ -141,7 +141,7 @@ export const MainPage: React.FC = () => {
   const totalPendingNotifications = pendingRequests.length + groupInvites.length;
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-discord-bg relative">
+    <div className="flex h-[100dvh] max-h-[100dvh] min-h-[100dvh] w-screen overflow-hidden bg-discord-bg relative">
       {/* Mobile Backdrop Overlay */}
       {isMobileNavOpen && (
         <div
@@ -210,6 +210,7 @@ export const MainPage: React.FC = () => {
           friends={friends}
           pendingRequests={pendingRequests}
           groupInvites={groupInvites}
+          groups={groups}
           onStartChat={(fId) => {
             setActiveDmFriendshipId(fId);
             setIsMobileNavOpen(false);
@@ -220,6 +221,12 @@ export const MainPage: React.FC = () => {
           onDeclineGroupInvite={declineGroupInvite}
           onSendFriendRequest={sendFriendRequest}
           onToggleMobileSidebar={() => setIsMobileNavOpen((prev) => !prev)}
+          onSelectGroup={(groupId) => {
+            setActiveMode('group');
+            setActiveGroupId(groupId);
+            setIsMobileNavOpen(false);
+          }}
+          onOpenCreateGroup={() => setIsCreateGroupOpen(true)}
         />
       ) : (
         // Active Chat Area (Direct Message or Group Chat)

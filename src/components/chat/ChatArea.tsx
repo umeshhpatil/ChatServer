@@ -30,7 +30,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMobileSidebar,
 }) => {
   return (
-    <div className="flex-1 flex flex-col h-full bg-discord-bg min-w-0 w-full overflow-hidden">
+    <div className="flex-1 flex flex-col h-full min-h-0 max-h-full bg-discord-bg min-w-0 w-full overflow-hidden relative">
       <ChatHeader
         title={title}
         isGroup={isGroup}
