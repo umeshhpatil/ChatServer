@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSound } from '../hooks/useSound';
@@ -74,6 +74,30 @@ export const MainPage: React.FC = () => {
       setActiveGroupId(groupParam);
     }
   }, [searchParams]);
+
+  // If user has groups, auto-select the first server so chat & typing box are open immediately
+  useEffect(() => {
+    if (groups.length > 0 && !activeGroupId && !activeDmFriendshipId) {
+      setActiveMode('group');
+      setActiveGroupId(groups[0].id);
+    }
+  }, [groups, activeGroupId, activeDmFriendshipId]);
+
+  // If user is brand new with 0 servers and 0 friends, automatically initialize a starter server
+  const autoCreatedStarterGroup = useRef(false);
+  useEffect(() => {
+    if (profile && !authLoading && groups.length === 0 && !autoCreatedStarterGroup.current) {
+      autoCreatedStarterGroup.current = true;
+      createGroup('General Lounge')
+        .then((newId) => {
+          if (newId) {
+            setActiveMode('group');
+            setActiveGroupId(newId);
+          }
+        })
+        .catch((err) => console.log('Starter group init:', err));
+    }
+  }, [profile, authLoading, groups.length, createGroup]);
 
   // Modal States
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);

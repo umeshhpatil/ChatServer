@@ -30,7 +30,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMobileSidebar,
 }) => {
   return (
-    <div className="flex-1 flex flex-col h-full min-h-0 max-h-full bg-discord-bg min-w-0 w-full overflow-hidden relative">
+    <div className="flex-1 flex flex-col h-[100dvh] max-h-[100dvh] min-h-0 bg-discord-bg min-w-0 w-full overflow-hidden relative">
       <ChatHeader
         title={title}
         isGroup={isGroup}
@@ -39,11 +39,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         onFlushOutbox={onFlushOutbox}
         onToggleMobileSidebar={onToggleMobileSidebar}
       />
-      <MessageList
-        messages={messages}
-        currentUserId={currentUserId}
-        loading={loading}
-      />
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col relative">
+        <MessageList
+          messages={messages}
+          currentUserId={currentUserId}
+          loading={loading}
+        />
+      </div>
       <MessageInput
         placeholder={isGroup ? `Message #${title}` : `Message @${title}`}
         onSendMessage={onSendMessage}

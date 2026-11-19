@@ -28,8 +28,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div className="px-3 sm:px-4 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-discord-bg flex-shrink-0 z-20 border-t border-discord-border/30">
-      <div className="bg-discord-input rounded-lg flex items-center px-3 sm:px-4 py-2 sm:py-2.5 focus-within:ring-1 focus-within:ring-discord-accent/50 transition-all shadow-inner">
+    <div className="w-full px-3 sm:px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-discord-bg flex-shrink-0 z-30 border-t border-discord-border">
+      <div className="bg-discord-input hover:bg-[#3d3f45] rounded-xl flex items-center px-3 sm:px-4 py-2 sm:py-2.5 border border-discord-border/80 focus-within:border-discord-accent focus-within:ring-1 focus-within:ring-discord-accent transition-all shadow-md">
         <input
           type="text"
           value={text}
@@ -43,14 +43,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
         <button
           onClick={handleSend}
           disabled={!text.trim() || disabled}
-          className={`ml-2 p-2 sm:p-1.5 rounded-full transition-colors flex-shrink-0 ${
+          className={`ml-2 p-2 sm:p-1.5 rounded-lg transition-all flex-shrink-0 ${
             text.trim() && !disabled
-              ? 'text-discord-accent hover:bg-discord-bg hover:text-white'
+              ? 'bg-discord-accent text-white hover:bg-discord-accent-hover shadow'
               : 'text-discord-muted/40 cursor-not-allowed'
           }`}
           title="Send Message (Enter)"
         >
-          <Send className="w-5 h-5 sm:w-4 sm:h-4" />
+          <Send className="w-4 h-4" />
         </button>
       </div>
     </div>
