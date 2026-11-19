@@ -11,6 +11,7 @@ interface UseChatOptions {
   currentUsername?: string | null;
   playSendSound: () => void;
   playReceiveSound: (force?: boolean) => void;
+  onIncomingMessage?: (senderName: string, body: string, avatarUrl?: string | null) => void;
 }
 
 export function useChat({
@@ -20,6 +21,7 @@ export function useChat({
   currentUsername,
   playSendSound,
   playReceiveSound,
+  onIncomingMessage,
 }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -337,6 +339,16 @@ export function useChat({
 
                 if (!isLookingAtChat) {
                   playReceiveSound();
+                  if (onIncomingMessage) {
+                    const previewText = newMsg.body.startsWith('[attachment:image]')
+                      ? '📷 Sent an image attachment'
+                      : newMsg.body;
+                    onIncomingMessage(
+                      newMsg.sender?.username || 'New Message',
+                      previewText,
+                      newMsg.sender?.avatar_url
+                    );
+                  }
                 }
               }
             } else if (payload.eventType === 'UPDATE') {
