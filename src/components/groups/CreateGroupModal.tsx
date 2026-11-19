@@ -65,7 +65,7 @@ export const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Umesh's Lounge"
+                placeholder="e.g. The Chill Zone"
                 className="w-full bg-[#1e1f22] border border-discord-border rounded px-3 py-2.5 text-sm text-discord-text focus:outline-none focus:border-discord-accent"
                 autoFocus
               />

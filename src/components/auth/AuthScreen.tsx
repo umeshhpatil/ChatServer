@@ -105,7 +105,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSignUp, onSignIn }) =>
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="e.g. Umesh"
+                placeholder="Choose a username"
                 className="w-full bg-[#1e1f22] border border-discord-border rounded px-3 py-2.5 text-sm text-discord-text focus:outline-none focus:border-discord-accent transition-colors"
               />
             </div>
